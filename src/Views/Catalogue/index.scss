@@ -1,0 +1,18 @@
+.catalogue {
+  background: black;
+  height: 100vh;
+  padding: 40px;
+  align-items: flex-start;
+
+  .links-container {
+    align-items: flex-start;
+
+    .link {
+      font-size: 23px;
+
+      a {
+        text-decoration: none;
+      }
+    }
+  }
+}
