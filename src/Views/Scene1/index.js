@@ -16,13 +16,14 @@ export const Scene1 = () => {
 
     const renderModel = () => {
         const scene = new THREE.Scene()
-        const cube = new THREE.BoxGeometry(1, 1, 1)
-        const material = new THREE.MeshBasicMaterial({color: 'green'})
+        const cube = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2)
+        const material = new THREE.MeshBasicMaterial({color: 'green', wireframe: true})
         const mesh = new THREE.Mesh(cube, material);
+        mesh.position.set(-2, 0, 0)
         scene.add(mesh);
 
         //camera
-        const camera = new THREE.PerspectiveCamera(74, SIZES.width / SIZES.height,);
+        const camera = new THREE.PerspectiveCamera(70, SIZES.width / SIZES.height,);
         camera.position.set(0, 0, 4);
         scene.add(camera)
 
@@ -40,6 +41,7 @@ export const Scene1 = () => {
     const tick = (mesh, scene, camera, renderer) => {
         orbitControl.current.update()
         renderer.render(scene, camera)
+
         window.requestAnimationFrame(() => tick(mesh, scene, camera, renderer))
     }
     return <div className={'scene'}>
