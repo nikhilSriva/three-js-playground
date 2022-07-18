@@ -12,7 +12,9 @@ import GalaxyTex from '../../assets/textures/galaxy.png'
 import VenusTex from '../../assets/textures/venusmap.jpg'
 import VenusBumpTex from '../../assets/textures/venusbump.jpg'
 import MarsTex from '../../assets/textures/marsmap1k.jpg'
+import ParticleMap from '../../assets/textures/smoke_10.png'
 import MarsBumpTex from '../../assets/textures/marsbump1k.jpg'
+import GUI from "lil-gui";
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
 const PLANETS = [{
@@ -26,13 +28,28 @@ const PLANETS = [{
 }, {
     key: 5, bumpMap: null, texture: JupiterTex, x: -10.5, radius: 0.6
 }]
-export const Scene5 = () => {
+
+const parameters = {
+    count: 100000,
+    size: 0.01,
+    radius: 5,
+    branches: 3,
+    spin: 1,
+    randomness: 0.2,
+    randomnessPower: 3,
+    insideColor: '#ff6030',
+    outsideColor: '#1b3984',
+}
+export const Scene5 = ({showDebugPanel = true}) => {
     const clock = useRef(new THREE.Clock())
     const camera = useRef(null);
     const [loading, setLoading] = useState(false);
     const renderer = useRef(null);
-    const directionalLight = useRef(null);
-    const pointLight = useRef(null);
+    const particleGeometry = useRef(null);
+    const _scene = useRef(null);
+    const _geometry = useRef(null);
+    const _material = useRef(null);
+    const _points = useRef(null);
     const orbitControl = useRef(null);
     const spotlight = useRef(null);
     const isPointLightAnimating = useRef(false);
@@ -77,8 +94,20 @@ export const Scene5 = () => {
     }
     const renderModel = () => {
         const scene = new THREE.Scene();
+        _scene.current = scene
+        if (showDebugPanel) {
+            const gui = new GUI();
+            gui.add(parameters, 'count').min(100).max(100000).step(100).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'size').min(0.001).max(0.1).step(0.001).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'radius').min(0.1).max(20).step(0.1).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'branches').min(2).max(20).step(1).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'spin').min(-5).max(5).step(0.001).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'randomness').min(0).max(2).step(0.001).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'randomnessPower').min(1).max(10).step(0.001).onFinishChange(() => generateGalaxy(scene));
+            gui.addColor(parameters, 'insideColor').onFinishChange(() => generateGalaxy(scene));
+            gui.addColor(parameters, 'outsideColor').onFinishChange(() => generateGalaxy(scene));
+        }
         const manager = new THREE.LoadingManager();
-
         const textureLoader = new THREE.TextureLoader(manager);
         manager.onStart = function () {
             console.log('Loading ßtarted!');
@@ -100,13 +129,14 @@ export const Scene5 = () => {
                     bumpMap: textureLoader.load(planet.bumpMap),
                     map: textureLoader.load(planet.texture)
                 }))
+            item.receiveShadow = true;
             item.position.x = planet.x;
             planets.current.push(item);
-            scene.add(item)
+            // scene.add(item)
         })
-        scene.add(sun);
+        // scene.add(sun);
         //camera
-        camera.current = new THREE.PerspectiveCamera(70, SIZES.width / SIZES.height,);
+        camera.current = new THREE.PerspectiveCamera(70, SIZES.width / SIZES.height, 0.1);
         camera.current.position.set(0, 6, 10);
         scene.add(camera.current)
 
@@ -121,30 +151,119 @@ export const Scene5 = () => {
             map: textureLoader.load(GalaxyTex), side: THREE.BackSide, transparent: true,
         });
         starMesh.current = new THREE.Mesh(starGeometry, starMaterial);
-        scene.add(starMesh.current);
+        // scene.add(starMesh.current);
 
         //lights
         const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.castShadow = true
         sun.add(pointLight)
 
+        /*
+        * Particles
+        * */
+
+        // const particleGeometry = new THREE.SphereGeometry(1, 32, 32);
+        particleGeometry.current = new THREE.BufferGeometry();
+        const count = 20000;
+        let positions = new Float32Array(count * 3);
+        let colors = new Float32Array(count * 3);
+        for (let i = 0; i < count * 3; i++) {
+            positions[i] = (Math.random() - 0.5) * 10;
+            colors[i] = Math.random();
+        }
+        particleGeometry.current.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+        particleGeometry.current.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+        const particleMaterial = new THREE.PointsMaterial({size: 0.1, sizeAttenuation: true})
+        particleMaterial.alphaMap = textureLoader.load(ParticleMap)
+        particleMaterial.transparent = true
+        particleMaterial.depthWrite = false
+        particleMaterial.blending = THREE.AdditiveBlending;
+        particleMaterial.vertexColors = true;
+        const particle = new THREE.Points(particleGeometry.current, particleMaterial);
+        particle.position.x = -3
+        // scene.add(particle)
+
+        generateGalaxy(scene)
         //renderer
         renderer.current = new THREE.WebGLRenderer({canvas});
+        renderer.current.shadowMap.enabled = true
         renderer.current.setSize(SIZES.width, SIZES.height)
         renderer.current.setPixelRatio(window.devicePixelRatio)
         renderer.current.render(scene, camera.current);
         tick(scene);
-        // tick(scene);
     };
+    const generateGalaxy = (scene) => {
+        if (_points.current !== null) {
+            _geometry.current.dispose();
+            _material.current.dispose();
+            _scene.current.remove(_points.current)
+        }
+        const geometry = new THREE.BufferGeometry();
+        _geometry.current = geometry;
+        const positions = new Float32Array(parameters.count * 3);
+        const colors = new Float32Array(parameters.count * 3);
+        const insideColor = new THREE.Color(parameters.insideColor);
+        const outsideColor = new THREE.Color(parameters.outsideColor);
 
+        for (let i = 0; i < parameters.count; i++) {
+            const i3 = i * 3;
+            let radius = parameters.radius * Math.random();
+            let spinAngle = radius * parameters.spin;
+            const mixedColor = insideColor.clone();
+            mixedColor.lerp(outsideColor, radius / parameters.branches)
+            const branchAngle = (i % parameters.branches) / parameters.branches * Math.PI * 2;
+            const randomX = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1)
+            const randomY = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1)
+            const randomZ = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1)
+
+            positions[i3] = Math.cos(branchAngle + spinAngle) * radius + randomX;
+            positions[i3 + 1] = randomY;
+            positions[i3 + 2] = Math.sin(branchAngle + spinAngle) * radius + randomZ;
+
+            //colors
+            colors[i3] = mixedColor.r
+            colors[i3 + 1] = mixedColor.g;
+            colors[i3 + 2] = mixedColor.b;
+        }
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const geometryMaterial = new THREE.PointsMaterial({
+            size: parameters.size,
+            sizeAttenuation: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            vertexColors: true
+        })
+        _material.current = geometryMaterial;
+        const points = new THREE.Points(geometry, geometryMaterial);
+        _points.current = points;
+        scene.add(points)
+    }
     const tick = (scene,) => {
         orbitControl.current.update();
-        animatePlanets()
+        animatePlanets();
+        animateCamera();
+        particleGeometry.current.attributes.position.needsUpdate = true;
         starMesh.current.rotation.z += 0.0001
         starMesh.current.rotation.x += 0.0001
         starMesh.current.rotation.y += 0.0001
         renderer.current.render(scene, camera.current);
         window.requestAnimationFrame(() => tick(scene));
     };
+    const animateCamera = () => {
+        let elapsedTime = clock.current.getElapsedTime() * 0.2;
+        if (camera.current.position.y <= -1.4 && camera.current.position.x <= -1.4) {
+            camera.current.position.x -= (elapsedTime * 0.02);
+            camera.current.position.z -= (elapsedTime * 0.02);
+        } else if (camera.current.position.y >= -0.2) {
+            camera.current.position.y -= (elapsedTime);
+            camera.current.position.z -= (elapsedTime);
+        } else {
+            camera.current.rotation.y += (elapsedTime * 0.0002);
+            camera.current.position.x -= (elapsedTime * 0.0002);
+
+        }
+    }
     const animatePlanets = () => {
         if (planets.current?.length) {
             planets.current?.forEach((item, index) => {
