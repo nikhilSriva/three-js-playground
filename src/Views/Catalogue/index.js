@@ -15,7 +15,7 @@ export const Catalogue = () => {
             </div>
             <div style={{position: 'absolute'}}>
 
-                <Scene5 showDebugPanel={false}/>
+                <Scene5 moveCamera={true}/>
             </div>
         </div>
     );

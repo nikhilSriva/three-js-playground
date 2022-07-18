@@ -14,7 +14,6 @@ import VenusBumpTex from '../../assets/textures/venusbump.jpg'
 import MarsTex from '../../assets/textures/marsmap1k.jpg'
 import ParticleMap from '../../assets/textures/smoke_10.png'
 import MarsBumpTex from '../../assets/textures/marsbump1k.jpg'
-import GUI from "lil-gui";
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
 const PLANETS = [{
@@ -40,7 +39,7 @@ const parameters = {
     insideColor: '#ff6030',
     outsideColor: '#1b3984',
 }
-export const Scene5 = ({showDebugPanel = true}) => {
+export const Scene5 = ({moveCamera = false}) => {
     const clock = useRef(new THREE.Clock())
     const camera = useRef(null);
     const [loading, setLoading] = useState(false);
@@ -95,18 +94,16 @@ export const Scene5 = ({showDebugPanel = true}) => {
     const renderModel = () => {
         const scene = new THREE.Scene();
         _scene.current = scene
-        if (showDebugPanel) {
-            const gui = new GUI();
-            gui.add(parameters, 'count').min(100).max(100000).step(100).onFinishChange(() => generateGalaxy(scene));
-            gui.add(parameters, 'size').min(0.001).max(0.1).step(0.001).onFinishChange(() => generateGalaxy(scene));
-            gui.add(parameters, 'radius').min(0.1).max(20).step(0.1).onFinishChange(() => generateGalaxy(scene));
-            gui.add(parameters, 'branches').min(2).max(20).step(1).onFinishChange(() => generateGalaxy(scene));
-            gui.add(parameters, 'spin').min(-5).max(5).step(0.001).onFinishChange(() => generateGalaxy(scene));
-            gui.add(parameters, 'randomness').min(0).max(2).step(0.001).onFinishChange(() => generateGalaxy(scene));
-            gui.add(parameters, 'randomnessPower').min(1).max(10).step(0.001).onFinishChange(() => generateGalaxy(scene));
-            gui.addColor(parameters, 'insideColor').onFinishChange(() => generateGalaxy(scene));
-            gui.addColor(parameters, 'outsideColor').onFinishChange(() => generateGalaxy(scene));
-        }
+        /* const gui = new GUI();
+         gui.add(parameters, 'count').min(100).max(100000).step(100).onFinishChange(() => generateGalaxy(scene));
+         gui.add(parameters, 'size').min(0.001).max(0.1).step(0.001).onFinishChange(() => generateGalaxy(scene));
+         gui.add(parameters, 'radius').min(0.1).max(20).step(0.1).onFinishChange(() => generateGalaxy(scene));
+         gui.add(parameters, 'branches').min(2).max(20).step(1).onFinishChange(() => generateGalaxy(scene));
+         gui.add(parameters, 'spin').min(-5).max(5).step(0.001).onFinishChange(() => generateGalaxy(scene));
+         gui.add(parameters, 'randomness').min(0).max(2).step(0.001).onFinishChange(() => generateGalaxy(scene));
+         gui.add(parameters, 'randomnessPower').min(1).max(10).step(0.001).onFinishChange(() => generateGalaxy(scene));
+         gui.addColor(parameters, 'insideColor').onFinishChange(() => generateGalaxy(scene));
+         gui.addColor(parameters, 'outsideColor').onFinishChange(() => generateGalaxy(scene));*/
         const manager = new THREE.LoadingManager();
         const textureLoader = new THREE.TextureLoader(manager);
         manager.onStart = function () {
@@ -122,19 +119,21 @@ export const Scene5 = ({showDebugPanel = true}) => {
         const sun = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 32), sunMaterial)
 
         //render planets
-        PLANETS.forEach(planet => {
-            const item = new THREE.Mesh(
-                new THREE.SphereGeometry(planet.radius, 32, 32),
-                new THREE.MeshStandardMaterial({
-                    bumpMap: textureLoader.load(planet.bumpMap),
-                    map: textureLoader.load(planet.texture)
-                }))
-            item.receiveShadow = true;
-            item.position.x = planet.x;
-            planets.current.push(item);
-            // scene.add(item)
-        })
-        // scene.add(sun);
+        if (!moveCamera) {
+            PLANETS.forEach(planet => {
+                const item = new THREE.Mesh(
+                    new THREE.SphereGeometry(planet.radius, 32, 32),
+                    new THREE.MeshStandardMaterial({
+                        bumpMap: textureLoader.load(planet.bumpMap),
+                        map: textureLoader.load(planet.texture)
+                    }))
+                item.receiveShadow = true;
+                item.position.x = planet.x;
+                planets.current.push(item);
+                scene.add(item)
+            })
+            scene.add(sun);
+        }
         //camera
         camera.current = new THREE.PerspectiveCamera(70, SIZES.width / SIZES.height, 0.1);
         camera.current.position.set(0, 6, 10);
@@ -151,7 +150,7 @@ export const Scene5 = ({showDebugPanel = true}) => {
             map: textureLoader.load(GalaxyTex), side: THREE.BackSide, transparent: true,
         });
         starMesh.current = new THREE.Mesh(starGeometry, starMaterial);
-        // scene.add(starMesh.current);
+        scene.add(starMesh.current);
 
         //lights
         const pointLight = new THREE.PointLight(0xffffff, 1);
@@ -242,7 +241,8 @@ export const Scene5 = ({showDebugPanel = true}) => {
     const tick = (scene,) => {
         orbitControl.current.update();
         animatePlanets();
-        animateCamera();
+        let elapsedTime = clock.current.getElapsedTime();
+        elapsedTime > 0.6 && moveCamera && animateCamera();
         particleGeometry.current.attributes.position.needsUpdate = true;
         starMesh.current.rotation.z += 0.0001
         starMesh.current.rotation.x += 0.0001
@@ -251,7 +251,7 @@ export const Scene5 = ({showDebugPanel = true}) => {
         window.requestAnimationFrame(() => tick(scene));
     };
     const animateCamera = () => {
-        let elapsedTime = clock.current.getElapsedTime() * 0.2;
+        let elapsedTime = clock.current.getElapsedTime() * 0.045;
         if (camera.current.position.y <= -1.4 && camera.current.position.x <= -1.4) {
             camera.current.position.x -= (elapsedTime * 0.02);
             camera.current.position.z -= (elapsedTime * 0.02);
