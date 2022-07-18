@@ -17,15 +17,15 @@ import MarsBumpTex from '../../assets/textures/marsbump1k.jpg'
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
 const PLANETS = [{
-    key: 1, bumpMap: MercuryBumpTex, texture: MercuryTexture, x: -1.4, radius: 0.1
+    key: 1, name: 'mercury', bumpMap: MercuryBumpTex, texture: MercuryTexture, x: -1.4, radius: 0.1
 }, {
-    key: 2, bumpMap: VenusBumpTex, texture: VenusTex, x: -2.6, radius: 0.34
+    key: 2, name: 'venus', bumpMap: VenusBumpTex, texture: VenusTex, x: -2.6, radius: 0.34
 }, {
-    key: 3, bumpMap: EarthBumpTex, texture: EarthTexture, x: -3.7, radius: 0.4
+    key: 3, name: 'earth', bumpMap: EarthBumpTex, texture: EarthTexture, x: -3.7, radius: 0.4
 }, {
-    key: 3, bumpMap: MarsBumpTex, texture: MarsTex, x: -5.2, radius: 0.15
+    key: 3, name: 'mars', bumpMap: MarsBumpTex, texture: MarsTex, x: -5.2, radius: 0.15
 }, {
-    key: 5, bumpMap: null, texture: JupiterTex, x: -10.5, radius: 0.6
+    key: 5, name: 'jupiter', bumpMap: null, texture: JupiterTex, x: -10.5, radius: 0.6
 }]
 
 const parameters = {
@@ -42,6 +42,7 @@ const parameters = {
 export const Scene5 = ({moveCamera = false}) => {
     const clock = useRef(new THREE.Clock())
     const camera = useRef(null);
+    const SPEED_FACTOR = useRef(1);
     const [loading, setLoading] = useState(false);
     const renderer = useRef(null);
     const particleGeometry = useRef(null);
@@ -50,11 +51,13 @@ export const Scene5 = ({moveCamera = false}) => {
     const _material = useRef(null);
     const _points = useRef(null);
     const orbitControl = useRef(null);
-    const spotlight = useRef(null);
-    const isPointLightAnimating = useRef(false);
+    const raycaster = useRef(null);
+    const currentIntersect = useRef(null);
+    const _canvas = useRef(null);
     const starMesh = useRef(null);
+    const previousTime = useRef(0);
     const planets = useRef([]);
-    const mousePointer = useRef({x: null, y: null});
+    const mousePointer = useRef(new THREE.Vector2());
 
     const onResize = () => {
         const _camera = camera.current, _renderer = renderer.current;
@@ -78,32 +81,36 @@ export const Scene5 = ({moveCamera = false}) => {
 
         // Handing Resize
         window.addEventListener("resize", onResize);
-        // window.addEventListener("mousemove", onPointMove);
+        window.addEventListener("mousemove", onPointMove);
+        window.addEventListener("click", onPointClick);
 
         return () => {
             window.removeEventListener("resize", onResize);
-            // window.removeEventListener("mousemove", onPointMove);
+            window.removeEventListener("mousemove", onPointMove);
+            window.removeEventListener("click", onPointClick);
         };
     }, []);
 
     const onPointMove = (event) => {
         // calculate pointer position in normalized device coordinates
         mousePointer.current.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mousePointer.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        mousePointer.current.y = -(event.clientY / window.innerHeight * 2 - 1);
+    }
+    const onPointClick = (event) => {
+        if (currentIntersect.current) {
+            let position = currentIntersect.current.object.geometry.attributes.position.array;
+            for (let i = 0; i < position.length; i++) {
+                const i3 = i * 3;
+                position[i3] = (Math.random() + Math.random())
+                position[i3 + 1] = (Math.random() + Math.random())
+                position[i3 + 2] = (Math.random() + Math.random())
+            }
+            currentIntersect.current.object.geometry.attributes.position.needsUpdate = true;
+        }
     }
     const renderModel = () => {
         const scene = new THREE.Scene();
         _scene.current = scene
-        /* const gui = new GUI();
-         gui.add(parameters, 'count').min(100).max(100000).step(100).onFinishChange(() => generateGalaxy(scene));
-         gui.add(parameters, 'size').min(0.001).max(0.1).step(0.001).onFinishChange(() => generateGalaxy(scene));
-         gui.add(parameters, 'radius').min(0.1).max(20).step(0.1).onFinishChange(() => generateGalaxy(scene));
-         gui.add(parameters, 'branches').min(2).max(20).step(1).onFinishChange(() => generateGalaxy(scene));
-         gui.add(parameters, 'spin').min(-5).max(5).step(0.001).onFinishChange(() => generateGalaxy(scene));
-         gui.add(parameters, 'randomness').min(0).max(2).step(0.001).onFinishChange(() => generateGalaxy(scene));
-         gui.add(parameters, 'randomnessPower').min(1).max(10).step(0.001).onFinishChange(() => generateGalaxy(scene));
-         gui.addColor(parameters, 'insideColor').onFinishChange(() => generateGalaxy(scene));
-         gui.addColor(parameters, 'outsideColor').onFinishChange(() => generateGalaxy(scene));*/
         const manager = new THREE.LoadingManager();
         const textureLoader = new THREE.TextureLoader(manager);
         manager.onStart = function () {
@@ -128,6 +135,7 @@ export const Scene5 = ({moveCamera = false}) => {
                         map: textureLoader.load(planet.texture)
                     }))
                 item.receiveShadow = true;
+                item.uuid = planet.name
                 item.position.x = planet.x;
                 planets.current.push(item);
                 scene.add(item)
@@ -139,7 +147,8 @@ export const Scene5 = ({moveCamera = false}) => {
         camera.current.position.set(0, 6, 10);
         scene.add(camera.current)
 
-        const canvas = document.querySelector('.canvas')
+        const canvas = document.querySelector('.canvas');
+        _canvas.current = canvas;
         orbitControl.current = new OrbitControls(camera.current, canvas)
         orbitControl.current.enableDamping = true
 
@@ -157,9 +166,9 @@ export const Scene5 = ({moveCamera = false}) => {
         pointLight.castShadow = true
         sun.add(pointLight)
 
-        /*
-        * Particles
-        * */
+        /**
+         * Particles
+         * */
 
         // const particleGeometry = new THREE.SphereGeometry(1, 32, 32);
         particleGeometry.current = new THREE.BufferGeometry();
@@ -183,6 +192,13 @@ export const Scene5 = ({moveCamera = false}) => {
         // scene.add(particle)
 
         generateGalaxy(scene)
+
+
+        /**
+         * Raycaster
+         * */
+        raycaster.current = new THREE.Raycaster();
+
         //renderer
         renderer.current = new THREE.WebGLRenderer({canvas});
         renderer.current.shadowMap.enabled = true
@@ -238,10 +254,28 @@ export const Scene5 = ({moveCamera = false}) => {
         _points.current = points;
         scene.add(points)
     }
+
     const tick = (scene,) => {
         orbitControl.current.update();
         animatePlanets();
         let elapsedTime = clock.current.getElapsedTime();
+
+        //raycaster
+        raycaster.current.setFromCamera(mousePointer.current, camera.current)
+        const intersects = raycaster.current.intersectObjects(planets.current);
+        if (intersects.length) {
+            if (!currentIntersect.current) {
+                _canvas.current.style.cursor = 'pointer'
+                // SPEED_FACTOR.current = 0.2;
+            }
+            currentIntersect.current = intersects[0];
+        } else {
+            if (currentIntersect.current) {
+                _canvas.current.style.cursor = 'default'
+                // SPEED_FACTOR.current = 1
+            }
+            currentIntersect.current = null;
+        }
         elapsedTime > 0.6 && moveCamera && animateCamera();
         particleGeometry.current.attributes.position.needsUpdate = true;
         starMesh.current.rotation.z += 0.0001
@@ -250,6 +284,7 @@ export const Scene5 = ({moveCamera = false}) => {
         renderer.current.render(scene, camera.current);
         window.requestAnimationFrame(() => tick(scene));
     };
+
     const animateCamera = () => {
         let elapsedTime = clock.current.getElapsedTime() * 0.045;
         if (camera.current.position.y <= -1.4 && camera.current.position.x <= -1.4) {
