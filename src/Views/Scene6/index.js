@@ -372,7 +372,7 @@ export const Scene6 = () => {
 
         if (intersects.length) {
             if (!currentIntersect.current) {
-                _canvas.current.style.cursor = `cursor`
+                _canvas.current.style.cursor = `crosshair`
             }
             currentIntersect.current = intersects[0];
         } else {
@@ -387,8 +387,14 @@ export const Scene6 = () => {
         world.current.step(1 / 60, deltaTime, 3);
 
         objectsToUpdate.current.forEach(object => {
-            object.mesh.position.copy(object.body.position)
-            object.mesh.quaternion.copy(object.body.quaternion)
+            object.mesh.position.copy(object.body.position);
+            object.mesh.quaternion.copy(object.body.quaternion);
+
+            if (object.mesh.position.z < -160 || object.mesh.position.x < -80) {
+                //remove very far objects.
+                //can also be implemented with a "sleep" event
+                scene.remove(object.mesh)
+            }
         })
         // sphere.current.position.copy(physicsSphere.current.position)
         window.requestAnimationFrame(() => tick(scene));
