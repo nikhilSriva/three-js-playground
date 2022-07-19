@@ -145,6 +145,10 @@ export const Scene6 = () => {
         scene.current = _scene;
         const gui = new GUI();
         _gui.current = gui;
+
+        const fog = new THREE.Fog('#030303', 80, 180);
+        scene.current.fog = fog
+
         const textureLoader = new THREE.TextureLoader();
         bombMaterial.current = new THREE.MeshStandardMaterial({
             roughness: 0.4, metalness: 0.5, map: textureLoader.load(VenusTex), bumpMap: textureLoader.load(VenusBumpTex)
@@ -306,6 +310,7 @@ export const Scene6 = () => {
         _renderer.shadowMap.type = THREE.PCFSoftShadowMap
         _renderer.setSize(SIZES.width, SIZES.height);
         _renderer.setPixelRatio(window.devicePixelRatio);
+        _renderer.setClearColor('#030303')
         _renderer.render(_scene, _camera);
         renderer.current = _renderer;
         // controls
@@ -390,7 +395,7 @@ export const Scene6 = () => {
             object.mesh.position.copy(object.body.position);
             object.mesh.quaternion.copy(object.body.quaternion);
 
-            if (object.mesh.position.z < -160 || object.mesh.position.x < -80) {
+            if (object.mesh.position.z < -200 || object.mesh.position.x < -130) {
                 //remove very far objects.
                 //can also be implemented with a "sleep" event
                 scene.remove(object.mesh)
