@@ -1,31 +1,43 @@
-import {useEffect, useRef} from "react";
+import {useEffect, useRef, useState} from "react";
 import * as THREE from "three";
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import "./index.scss";
 import CANNON from 'cannon'
 import GUI from 'lil-gui';
-import Icon from '../../assets/bomb.png'
 import HitSound from '../../assets/sounds/hit.mp3';
+import VenusTex from '../../assets/textures/venusmap.jpg'
+import VenusBumpTex from '../../assets/textures/venusbump.jpg'
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
 
 export const Scene6 = () => {
     const clock = useRef(new THREE.Clock())
-    const camera = useRef(null);
+    const camera = useRef(new THREE.PerspectiveCamera());
     const renderer = useRef(null);
     const scene = useRef(null);
+    const bombSpecs = useRef({
+        power: 30, size: 0.3
+    });
     const world = useRef(null);
+    const bombMaterial = useRef(new THREE.MeshStandardMaterial());
     const envMapTexture = useRef(null);
     const objectsToUpdate = useRef([]);
     const sphere = useRef(new THREE.Mesh());
     const previousElapsedTime = useRef(0);
     const orbitControl = useRef(null);
     const mousePointer = useRef(new THREE.Vector2());
-    const raycaster = useRef(null);
+    const raycaster = useRef(new THREE.Raycaster());
     const _canvas = useRef(null);
+    const _plane = useRef(null);
     const currentIntersect = useRef(null);
-    const vec3 = useRef(new THREE.Vector3());
+    const [activateMachineGun, setActiveMachineGun] = useState(false)
+    const gun = useRef(new THREE.Mesh());
+    const _gui = useRef(null);
+    const _sphereBody = useRef(null);
     const hitSound = useRef(new Audio(HitSound));
+    const vec3 = useRef(new THREE.Vector3());
+    const mousePointerVec = useRef(new THREE.Vector3());
+    const fireInterval = useRef(1000);
     const onResize = () => {
         const _camera = camera.current, _renderer = renderer.current;
         if (_camera && _renderer) {
@@ -56,34 +68,127 @@ export const Scene6 = () => {
             window.removeEventListener("resize", onResize);
             window.removeEventListener("click", onPointClick);
             window.removeEventListener("mousemove", onPointMove);
-
+            _gui.current.destroy();
 
         };
     }, []);
 
     const onPointMove = (event) => {
+        // camera.current.getWorldDirection(vec3.current);
         // calculate pointer position in normalized device coordinates
         mousePointer.current.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mousePointer.current.y = -(event.clientY / window.innerHeight * 2 - 1);
+        mousePointer.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        //gun movement
+        raycaster.current.setFromCamera(mousePointer.current, camera.current);//set raycaster
     }
+
     const onPointClick = (event) => {
+        if (event.path?.[0] !== _canvas.current) return;
         if (currentIntersect.current) {
             let body = objectsToUpdate.current.filter(item => item.mesh.uuid === currentIntersect.current?.object?.uuid)?.[0]?.body;
-            console.log(currentIntersect.current.point)
-            body.applyLocalForce(
-                new CANNON.Vec3(
-                    Math.random() * 100 + 40,
-                    Math.random() * 100 + 30, Math.random() * 100 + 60),
-                new CANNON.Vec3(currentIntersect.current.point.x, currentIntersect.current.point.y, currentIntersect.current.point.z)
-            );
+            // body.applyLocalForce(
+            //     new CANNON.Vec3(
+            //         Math.random() * 100 + 40,
+            //         Math.random() * 100 + 30, Math.random() * 100 + 60),
+            //     new CANNON.Vec3(currentIntersect.current.point.x, currentIntersect.current.point.y, currentIntersect.current.point.z)
+            // );
         }
+        fireBall()
+    }
+    const fireBall = () => {
+        /**
+         * Fire ball
+         * */
+
+        let color = new THREE.Color(0xffffff);
+        color.setHex(Math.random() * 0xffffff);
+        //3js body
+        const _sphere = new THREE.Mesh(new THREE.SphereGeometry(bombSpecs.current.size, 32, 32), bombMaterial.current);
+        _sphere.castShadow = true
+        _sphere.receiveShadow = true
+        _sphere.position.set(currentIntersect.current.point.x, currentIntersect.current.point.y, currentIntersect.current.point.z)
+
+        //physics body
+        const shape = new CANNON.Sphere(bombSpecs.current.size);
+        const body = new CANNON.Body({
+            mass: 10, shape,
+        });
+        body.position.set(currentIntersect.current.point.x, currentIntersect.current.point.y, currentIntersect.current.point.z);
+        scene.current.add(_sphere);
+        world.current.addBody(body)
+        //
+        let vector = vec3.current;
+        // vec3.current.set(0, 0, 1);
+        vector.unproject(camera.current);
+        let ray = new THREE.Ray(new THREE.Vector3(camera.current.position.x, camera.current.position.y - 2, camera.current.position.z - 2.6), vector.sub(currentIntersect.current.point).normalize());
+        vec3.current.x = -ray.direction.x;
+        vec3.current.y = -ray.direction.y;
+        vec3.current.z = -ray.direction.z;
+        let x = body.position.x;
+        let y = body.position.y;
+        let z = body.position.z;
+        body.velocity.set(vec3.current.x * bombSpecs.current.power, vec3.current.y * bombSpecs.current.power, vec3.current.z * bombSpecs.current.power);
+        x += vec3.current.x;
+        y += vec3.current.y;
+        z += vec3.current.z;
+        console.log(x, y, z)
+        body.position.set(x, y, z);
+        _sphere.position.set(x, y, z);
+        objectsToUpdate.current.push({
+            mesh: _sphere, body
+        });
     }
 
     const renderModel = () => {
         const _scene = new THREE.Scene();
         scene.current = _scene;
         const gui = new GUI();
-
+        _gui.current = gui;
+        const textureLoader = new THREE.TextureLoader();
+        bombMaterial.current = new THREE.MeshStandardMaterial({
+            roughness: 0.4, metalness: 0.5, map: textureLoader.load(VenusTex), bumpMap: textureLoader.load(VenusBumpTex)
+        });
+        console.log(bombMaterial.current)
+        gui.add({
+            bombPower: 30,
+        }, 'bombPower').min(20).max(200).step(10).onChange((v) => {
+            bombSpecs.current.power = v
+        });
+        gui.add({
+            bombSize: 0.5,
+        }, 'bombSize').min(0.3).max(3).step(0.001).onChange((v) => {
+            bombSpecs.current.size = v
+        });
+        gui.add({
+            activeMachineGun: false,
+        }, 'activeMachineGun').onChange((v) => {
+            if (v) {
+                if (fireInterval.current)
+                    clearInterval(fireInterval.current)
+                fireInterval.current = setInterval(fireBall, fireInterval.current);
+            } else clearInterval(fireInterval.current)
+        });
+        gui.add({
+            fireInterval: 1000,
+        }, 'fireInterval').min(100).max(1000).step(50).onChange((v) => {
+            fireInterval.current = v
+        });
+        gui.add({
+            [`generate100ObjectsToDestroy🔥`]: () => {
+                for (let i = 0; i < 100; i++) {
+                    let num = randomIntFromInterval(0, 2);
+                    if (num < 1) {
+                        createSphere((Math.random() * 0.5) + 0.13, {
+                            x: (Math.random() - 0.5) * 3, y: (Math.random() * 4) + 2, z: (Math.random() - 0.5) * 3
+                        })
+                    } else
+                        createBox(Math.random() * 0.89, Math.random() * 1.3, Math.random() * 0.9, {
+                            x: (Math.random() - 0.5) * 3, y: (Math.random() * 4) + 2, z: (Math.random() - 0.5) * 3
+                        })
+                }
+            },
+        }, `generate100ObjectsToDestroy🔥`);
         gui.add({
             createSphere: () => createSphere((Math.random() * 0.5) + 0.13, {
                 x: (Math.random() - 0.5) * 3, y: (Math.random() * 4) + 2, z: (Math.random() - 0.5) * 3
@@ -98,6 +203,25 @@ export const Scene6 = () => {
         const cubeTextureLoader = new THREE.CubeTextureLoader();
         const _envMapTexture = cubeTextureLoader.load(['../../assets/textures/envTex/px.png', '../../assets/textures/envTex/nx.png', '../../assets/textures/envTex/py.png', '../../assets/textures/envTex/ny.png', '../../assets/textures/envTex/pz.png', '../../assets/textures/envTex/nz.png',])
         envMapTexture.current = _envMapTexture
+
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({
+            alphaTest: 0, visible: false
+        }))
+        plane.position.z = camera.current.position.z
+        _scene.add(plane);
+        _plane.current = plane;
+
+
+        // Create a sphere
+        const mass = 5, radius = 1.3;
+        const sphereShape = new CANNON.Sphere(radius);
+        const sphereBody = new CANNON.Body({mass: mass});
+        sphereBody.addShape(sphereShape);
+        sphereBody.position.set(0, 0, 3);
+        sphereBody.linearDamping = 0.9;
+        world.current?.addBody(sphereBody);
+        _sphereBody.current = sphereBody;
+
         /**
          * Floor
          */
@@ -117,11 +241,6 @@ export const Scene6 = () => {
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.2)
         directionalLight.castShadow = true
         directionalLight.shadow.mapSize.set(1024, 1024)
-        // directionalLight.shadow.camera.far = 15
-        // directionalLight.shadow.camera.left = -7
-        // directionalLight.shadow.camera.top = 7
-        // directionalLight.shadow.camera.right = 7
-        // directionalLight.shadow.camera.bottom = -7
         directionalLight.position.set(30, 40, -50)
         _scene.add(directionalLight)
 
@@ -154,12 +273,24 @@ export const Scene6 = () => {
         /**
          * Camera
          */
-        const _camera = new THREE.PerspectiveCamera(75, SIZES.width / SIZES.height, 0.1, 100)
-        _camera.position.set(-3, 6, 6)
+        const _camera = new THREE.PerspectiveCamera(75, SIZES.width / SIZES.height, 0.1, 1000)
+        _camera.rotation.order = 'YXZ';
+        _camera.position.set(-3, 6, 20)
         _scene.add(_camera)
 
         camera.current = _camera;
 
+        /**
+         * Gun
+         * */
+        const _gun = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 3, 32, 32, 32), new THREE.MeshStandardMaterial({
+            roughness: 0.3, metalness: 0.4, color: 'red',
+        }));
+        _gun.castShadow = true
+        _gun.lookAt(0, 0, 0)
+        _gun.position.set(_camera.position.x, _camera.position.y - 2, _camera.position.z - 2.6)
+        scene.current.add(_gun);
+        gun.current = _gun
 
         const canvas = document.querySelector(".canvas");
         _canvas.current = canvas;
@@ -205,15 +336,9 @@ export const Scene6 = () => {
         })
     }
     const createBox = (width, height, depth, position) => {
-        const box = new THREE.Mesh(
-            new THREE.BoxGeometry(width, height, depth, 32, 32, 32),
-            new THREE.MeshStandardMaterial({
-                roughness: 0.3,
-                metalness: 0.4,
-                envMap: envMapTexture.current,
-                envMapIntensity: 0.5,
-                color: 'black',
-            }));
+        const box = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth, 32, 32, 32), new THREE.MeshStandardMaterial({
+            roughness: 0.3, metalness: 0.4, envMap: envMapTexture.current, envMapIntensity: 0.5, color: 'black',
+        }));
         box.castShadow = true
         box.position.copy(position)
         scene.current.add(box);
@@ -238,10 +363,16 @@ export const Scene6 = () => {
         _renderer.render(scene, _camera);
 
         raycaster.current.setFromCamera(mousePointer.current, camera.current)
-        const intersects = raycaster.current.intersectObjects(objectsToUpdate.current.map(item => item.mesh));
+        // const intersects = raycaster.current.intersectObjects(objectsToUpdate.current.map(item => item.mesh));
+        const intersects = raycaster.current.intersectObjects(scene.children);
+
+        //gun movement
+        const intersect = raycaster.current.intersectObject(_plane.current);
+        if (intersect?.[0]?.point) gun.current.lookAt(intersect?.[0]?.point);
+
         if (intersects.length) {
             if (!currentIntersect.current) {
-                _canvas.current.style.cursor = `url(${Icon}), auto`
+                _canvas.current.style.cursor = `cursor`
             }
             currentIntersect.current = intersects[0];
         } else {
@@ -264,5 +395,10 @@ export const Scene6 = () => {
     };
     return (<div className={"scene"}>
         <canvas className={"canvas"}/>
+        <p>Click to shoot!</p>
     </div>);
 };
+
+function randomIntFromInterval(min, max) { // min and max included
+    return Math.floor(Math.random() * (max - min + 1) + min)
+}
