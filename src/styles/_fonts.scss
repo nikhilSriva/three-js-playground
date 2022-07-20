@@ -1,0 +1,11 @@
+// ######################################## //
+// ## FONTS.SCSS ## //
+// ######################################## //
+
+@font-face {
+  font-family: 'JetBrainsMono';
+  font-style: normal;
+  font-weight: 400;
+  src: url("../assets/fonts/JetBrainsMono-Regular.ttf"); /* IE9 Compat Modes */
+  src: url("../assets/fonts/JetBrainsMono-Regular.ttf") format("truetype");
+}

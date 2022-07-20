@@ -15,12 +15,43 @@ export const Scene1 = () => {
     }, []);
 
     const renderModel = () => {
-        const scene = new THREE.Scene()
+        const scene = new THREE.Scene();
+        scene.background = new THREE.CubeTextureLoader().load([
+            '../../assets/textures/px_eso0932a.jpeg',
+            '../../assets/textures/nx_eso0932a.jpeg',
+            '../../assets/textures/py_eso0932a.jpeg',
+            '../../assets/textures/ny_eso0932a.jpeg',
+            '../../assets/textures/pz_eso0932a.jpeg',
+            '../../assets/textures/nz_eso0932a.jpeg',
+        ]);
         const cube = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2)
         const material = new THREE.MeshBasicMaterial({color: 'green', wireframe: true})
         const mesh = new THREE.Mesh(cube, material);
         mesh.position.set(-2, 0, 0)
         scene.add(mesh);
+
+        const light1 = new THREE.SpotLight()
+        light1.position.set(2.5, 5, 5)
+        light1.angle = Math.PI / 4
+        light1.penumbra = 0.5
+        light1.castShadow = true
+        light1.shadow.mapSize.width = 1024
+        light1.shadow.mapSize.height = 1024
+        light1.shadow.camera.near = 0.5
+        light1.shadow.camera.far = 20
+        scene.add(light1)
+
+        const light2 = new THREE.SpotLight()
+        light2.position.set(-2.5, 5, 5)
+        light2.angle = Math.PI / 4
+        light2.penumbra = 0.5
+        light2.castShadow = true
+        light2.shadow.mapSize.width = 1024
+        light2.shadow.mapSize.height = 1024
+        light2.shadow.camera.near = 0.5
+        light2.shadow.camera.far = 20
+        scene.add(light2)
+
 
         //camera
         const camera = new THREE.PerspectiveCamera(70, SIZES.width / SIZES.height,);

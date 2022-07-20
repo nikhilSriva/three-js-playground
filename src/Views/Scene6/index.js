@@ -7,6 +7,7 @@ import GUI from 'lil-gui';
 import HitSound from '../../assets/sounds/hit.mp3';
 import VenusTex from '../../assets/textures/venusmap.jpg'
 import VenusBumpTex from '../../assets/textures/venusbump.jpg'
+import {Instructions} from "../../components/Instructions";
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
 
@@ -405,8 +406,9 @@ export const Scene6 = () => {
         window.requestAnimationFrame(() => tick(scene));
     };
     return (<div className={"scene"}>
+        <Instructions title={`Hit 'Em`}
+                      subText={`Create random shapes. Click to shoot asteroids outta your space gun and Hit 'em all!!!!`}/>
         <canvas className={"canvas"}/>
-        <p>Click to shoot!</p>
     </div>);
 };
 

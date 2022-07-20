@@ -1,17 +1,39 @@
 .catalogue {
   background: black;
   height: 100vh;
-  padding: 40px 0;
   align-items: flex-start;
 
   .links-container {
     align-items: flex-start;
+    position: absolute;
+    z-index: 99999;
+    bottom: 0;
 
     .link {
-      font-size: 23px;
+      width: fit-content;
+      border-radius: 30px;
+      border: 1px solid #ffffff;
+      padding: 7px 25px;
+      margin-bottom: 10px;
+      background: rgba(#1aa213, 0.2);
+      cursor: pointer;
+      transition: all 0.25s linear;
 
       a {
+        font-family: JetBrainsMono !important;
+        font-size: 18px;
+        color: white;
         text-decoration: none;
+      }
+
+      &:hover {
+        transition: all 0.25s linear;
+        box-shadow: 0 0 20px 0 rgba(#1aa213, 0.8);
+        border: 1px solid #1aa213;
+
+        a {
+          color: #1aa213;
+        }
       }
     }
   }
