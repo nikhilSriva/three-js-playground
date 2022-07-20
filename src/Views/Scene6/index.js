@@ -12,6 +12,7 @@ import {Instructions} from "../../components/Instructions";
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
 
 export const Scene6 = () => {
+    const instructionDiv = useRef(document.querySelector('.instruction'))
     const clock = useRef(new THREE.Clock())
     const camera = useRef(new THREE.PerspectiveCamera());
     const renderer = useRef(null);
@@ -58,6 +59,7 @@ export const Scene6 = () => {
 
     useEffect(() => {
         renderModel();
+        instructionDiv.current = document.querySelector('.instruction');
 
         // Handing Resize
         window.addEventListener("resize", onResize);
@@ -406,7 +408,7 @@ export const Scene6 = () => {
         window.requestAnimationFrame(() => tick(scene));
     };
     return (<div className={"scene"}>
-        <Instructions title={`Hit 'Em`}
+        <Instructions title={`🔫 Hit 'Em`}
                       subText={`Create random shapes. Click to shoot asteroids outta your space gun and Hit 'em all!!!!`}/>
         <canvas className={"canvas"}/>
     </div>);

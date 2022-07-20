@@ -8,9 +8,7 @@ export const Catalogue = () => {
         <div className={"catalogue"}>
             <div className={"links-container"}>
                 {Routes.map(({label, route}) => (
-                    <div className={"link"}>
-                        <Link to={route}>{label}</Link>
-                    </div>
+                    <Link className={'link'} to={route}>{label}</Link>
                 ))}
             </div>
             <div style={{position: 'absolute'}}>
