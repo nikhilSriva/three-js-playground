@@ -12,8 +12,9 @@ import GalaxyTex from '../../assets/textures/galaxy.png'
 import VenusTex from '../../assets/textures/venusmap.jpg'
 import VenusBumpTex from '../../assets/textures/venusbump.jpg'
 import MarsTex from '../../assets/textures/marsmap1k.jpg'
-import ParticleMap from '../../assets/textures/smoke_10.png'
+import ParticleMap from '../../assets/textures/circle_05.png'
 import MarsBumpTex from '../../assets/textures/marsbump1k.jpg'
+import GUI from 'lil-gui'
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
 const PLANETS = [{
@@ -30,7 +31,7 @@ const PLANETS = [{
 
 const parameters = {
     count: 100000,
-    size: 0.01,
+    size: 0.03,
     radius: 5,
     branches: 3,
     spin: 1,
@@ -42,6 +43,7 @@ const parameters = {
 export const Scene5 = ({moveCamera = false}) => {
     const clock = useRef(new THREE.Clock())
     const camera = useRef(null);
+    const _gui = useRef(null);
     const SPEED_FACTOR = useRef(1);
     const [loading, setLoading] = useState(false);
     const renderer = useRef(null);
@@ -88,6 +90,7 @@ export const Scene5 = ({moveCamera = false}) => {
             window.removeEventListener("resize", onResize);
             window.removeEventListener("mousemove", onPointMove);
             window.removeEventListener("click", onPointClick);
+            _gui.current?.destroy()
         };
     }, []);
 
@@ -113,6 +116,19 @@ export const Scene5 = ({moveCamera = false}) => {
         _scene.current = scene
         const manager = new THREE.LoadingManager();
         const textureLoader = new THREE.TextureLoader(manager);
+        if (!moveCamera) {
+            const gui = new GUI();
+            _gui.current = gui;
+            gui.add(parameters, 'count').min(100).max(100000).step(100).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'size').min(0.001).max(0.1).step(0.001).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'radius').min(0.1).max(20).step(0.1).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'branches').min(2).max(20).step(1).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'spin').min(-5).max(5).step(0.001).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'randomness').min(0).max(2).step(0.001).onFinishChange(() => generateGalaxy(scene));
+            gui.add(parameters, 'randomnessPower').min(1).max(10).step(0.001).onFinishChange(() => generateGalaxy(scene));
+            gui.addColor(parameters, 'insideColor').onFinishChange(() => generateGalaxy(scene));
+            gui.addColor(parameters, 'outsideColor').onFinishChange(() => generateGalaxy(scene));
+        }
         manager.onStart = function () {
             console.log('Loading ßtarted!');
             setLoading(true);
@@ -247,8 +263,11 @@ export const Scene5 = ({moveCamera = false}) => {
             sizeAttenuation: true,
             depthWrite: false,
             blending: THREE.AdditiveBlending,
-            vertexColors: true
+            vertexColors: true,
         })
+        const textureLoader = new THREE.TextureLoader();
+        geometryMaterial.alphaMap = textureLoader.load(ParticleMap)
+        geometryMaterial.transparent = true
         _material.current = geometryMaterial;
         const points = new THREE.Points(geometry, geometryMaterial);
         _points.current = points;
