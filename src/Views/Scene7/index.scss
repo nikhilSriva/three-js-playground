@@ -1,0 +1,13 @@
+.scene {
+  height: 100%;
+  user-select: none;
+
+  p {
+    font-size: 30px;
+    color: white;
+    position: absolute;
+    z-index: 9999;
+    top: 0;
+    left: 0;
+  }
+}

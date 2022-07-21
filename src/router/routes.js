@@ -3,6 +3,7 @@ import {Scene3} from "../Views/Scene3";
 import {Scene4} from "../Views/Scene4";
 import {Scene5} from "../Views/Scene5";
 import {Scene6} from "../Views/Scene6";
+import {Scene7} from "../Views/Scene7";
 
 export const Routes = [
     // {label: "Basic Cube Render", route: "/scene1", component: Scene1},
@@ -29,5 +30,9 @@ export const Routes = [
         label: "Hit 'em",
         route: "/scene6",
         component: Scene6,
+    }, {
+        label: "StopWalls",
+        route: "/scene7",
+        component: Scene7,
     },
 ];

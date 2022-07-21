@@ -8,17 +8,21 @@ import HitSound from '../../assets/sounds/hit.mp3';
 import VenusTex from '../../assets/textures/venusmap.jpg'
 import VenusBumpTex from '../../assets/textures/venusbump.jpg'
 import {Instructions} from "../../components/Instructions";
-import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
-import GunModel from '../../assets/models/PistolaLaser.glb';
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
 
-export const Scene6 = () => {
+export const Scene7 = () => {
     const instructionDiv = useRef(document.querySelector('.instruction'))
     const clock = useRef(new THREE.Clock())
     const camera = useRef(new THREE.PerspectiveCamera());
     const renderer = useRef(null);
     const scene = useRef(null);
+    const playerControls = useRef({
+        moveForward: false,
+        moveBackward: false,
+        moveLeft: false,
+        moveRight: false,
+    });
     const bombSpecs = useRef({
         power: 30, size: 0.3
     });
@@ -67,17 +71,76 @@ export const Scene6 = () => {
         window.addEventListener("resize", onResize);
         window.addEventListener("click", onPointClick);
         window.addEventListener("mousemove", onPointMove);
-
+        document.addEventListener('keydown', onKeyDown, false);
+        document.addEventListener('keyup', onKeyUp, false);
 
         return () => {
             window.removeEventListener("resize", onResize);
             window.removeEventListener("click", onPointClick);
             window.removeEventListener("mousemove", onPointMove);
-            _gui.current.destroy();
+            document.removeEventListener('keydown', onKeyDown, false);
+            document.removeEventListener('keyup', onKeyUp, false);
 
         };
     }, []);
 
+    function onKeyDown(event) {
+
+        switch (event.keyCode) {
+            case 38: /*up*/
+            case 87: /*W*/
+            case 90: /*Z*/
+                playerControls.moveForward = true;
+                break;
+
+            case 40: /*down*/
+            case 83: /*S*/
+                playerControls.moveBackward = true;
+                break;
+
+            case 37: /*left*/
+            case 65: /*A*/
+            case 81: /*Q*/
+                playerControls.moveLeft = true;
+                break;
+
+            case 39: /*right*/
+            case 68: /*D*/
+                playerControls.moveRight = true;
+                break;
+
+        }
+
+    }
+
+    function onKeyUp(event) {
+
+        switch (event.keyCode) {
+            case 38: /*up*/
+            case 87: /*W*/
+            case 90: /*Z*/
+                playerControls.moveForward = false;
+                break;
+
+            case 40: /*down*/
+            case 83: /*S*/
+                playerControls.moveBackward = false;
+                break;
+
+            case 37: /*left*/
+            case 65: /*A*/
+            case 81: /*Q*/
+                playerControls.moveLeft = false;
+                break;
+
+            case 39: /*right*/
+            case 68: /*D*/
+                playerControls.moveRight = false;
+                break;
+
+        }
+
+    };
     const onPointMove = (event) => {
         // camera.current.getWorldDirection(vec3.current);
         // calculate pointer position in normalized device coordinates
@@ -99,51 +162,7 @@ export const Scene6 = () => {
             //     new CANNON.Vec3(currentIntersect.current.point.x, currentIntersect.current.point.y, currentIntersect.current.point.z)
             // );
         }
-        fireBall()
     }
-    const fireBall = () => {
-        /**
-         * Fire ball
-         * */
-
-        let color = new THREE.Color(0xffffff);
-        color.setHex(Math.random() * 0xffffff);
-        //3js body
-        const _sphere = new THREE.Mesh(new THREE.SphereGeometry(bombSpecs.current.size, 32, 32), bombMaterial.current);
-        _sphere.castShadow = true
-        _sphere.receiveShadow = true
-        _sphere.position.set(currentIntersect.current.point.x, currentIntersect.current.point.y, currentIntersect.current.point.z)
-
-        //physics body
-        const shape = new CANNON.Sphere(bombSpecs.current.size);
-        const body = new CANNON.Body({
-            mass: 10, shape,
-        });
-        body.position.set(currentIntersect.current.point.x, currentIntersect.current.point.y, currentIntersect.current.point.z);
-        scene.current.add(_sphere);
-        world.current.addBody(body)
-        //
-        let vector = vec3.current;
-        // vec3.current.set(0, 0, 1);
-        vector.unproject(camera.current);
-        let ray = new THREE.Ray(new THREE.Vector3(camera.current.position.x, camera.current.position.y - 2, camera.current.position.z - 2.6), vector.sub(currentIntersect.current.point).normalize());
-        vec3.current.x = -ray.direction.x;
-        vec3.current.y = -ray.direction.y;
-        vec3.current.z = -ray.direction.z;
-        let x = body.position.x;
-        let y = body.position.y;
-        let z = body.position.z;
-        body.velocity.set(vec3.current.x * bombSpecs.current.power, vec3.current.y * bombSpecs.current.power, vec3.current.z * bombSpecs.current.power);
-        x += vec3.current.x;
-        y += vec3.current.y;
-        z += vec3.current.z;
-        body.position.set(x, y, z);
-        _sphere.position.set(x, y, z);
-        objectsToUpdate.current.push({
-            mesh: _sphere, body
-        });
-    }
-
     const renderModel = () => {
         const _scene = new THREE.Scene();
         scene.current = _scene;
@@ -158,26 +177,6 @@ export const Scene6 = () => {
             roughness: 0.4, metalness: 0.5, map: textureLoader.load(VenusTex), bumpMap: textureLoader.load(VenusBumpTex)
         });
 
-        /**
-         * Models
-         */
-        const gltfLoader = new GLTFLoader();
-        gltfLoader.load(GunModel, (gltf) => {
-            const model = gltf.scene;
-            if (model) {
-                const objects = [...gltf.scene.children];
-                const modelGroup = new THREE.Group();
-                for (const object of objects) {
-                    modelGroup.add(object)
-                }
-                laserGun.current = modelGroup;
-                laserGun.current.castShadow = true
-                // laserGun.current.lookAt(0, 0, 0)
-                laserGun.current.position.set(_camera.position.x, _camera.position.y - 4, _camera.position.z - 10)
-                laserGun.current.rotation.y = Math.PI * 0.5
-                scene.current.add(modelGroup);
-            }
-        });
 
         gui.add({
             bombPower: 30,
@@ -188,20 +187,6 @@ export const Scene6 = () => {
             bombSize: 0.5,
         }, 'bombSize').min(0.3).max(3).step(0.001).onChange((v) => {
             bombSpecs.current.size = v
-        });
-        gui.add({
-            activeMachineGun: false,
-        }, 'activeMachineGun').onChange((v) => {
-            if (v) {
-                if (fireInterval.current)
-                    clearInterval(fireInterval.current)
-                fireInterval.current = setInterval(fireBall, fireInterval.current);
-            } else clearInterval(fireInterval.current)
-        });
-        gui.add({
-            fireInterval: 1000,
-        }, 'fireInterval').min(100).max(1000).step(50).onChange((v) => {
-            fireInterval.current = v
         });
         gui.add({
             [`generate100ObjectsToDestroy🔥`]: () => {
@@ -219,7 +204,7 @@ export const Scene6 = () => {
             },
         }, `generate100ObjectsToDestroy🔥`);
         gui.add({
-            createSphere: () => createSphere((Math.random() * 0.5) + 0.13, {
+            createSphere: () => createSphere(5, {
                 x: (Math.random() - 0.5) * 3, y: (Math.random() * 4) + 2, z: (Math.random() - 0.5) * 3
             }),
         }, 'createSphere');
@@ -239,7 +224,9 @@ export const Scene6 = () => {
         plane.position.z = camera.current.position.z
         _scene.add(plane);
         _plane.current = plane;
-
+        createSphere(5, {
+            x: (Math.random() - 0.5) * 3, y: (Math.random() * 4) + 2, z: (Math.random() - 0.5) * 3
+        })
 
         // Create a sphere
         const mass = 5, radius = 1.3;
@@ -355,6 +342,7 @@ export const Scene6 = () => {
         });
         body.position.copy(position);
         world.current.addBody(body)
+
         objectsToUpdate.current.push({
             mesh: _sphere, body
         })
