@@ -310,7 +310,6 @@ export const Scene4 = () => {
                 item.userData.obb.copy(item.geometry.userData.obb)
                 person.current.userData.obb.applyMatrix4(person.current.matrixWorld)
                 item.userData.obb.applyMatrix4(item.matrixWorld);
-                console.log(direction.current)
                 if (person.current.userData.obb.intersectsOBB(item.userData.obb)) {
                     console.log('intersecting', item.name)
                 } else {
@@ -335,7 +334,6 @@ export const Scene4 = () => {
             velocity.current.z -= velocity.current.z * 10.0 * delta;
 
             velocity.current.y -= 9.8 * 100.0 * delta; // 100.0 = mass
-            console.log(direction.current)
             direction.current.z = Number(moveForward.current) - Number(moveBackward.current);
             direction.current.x = Number(moveRight.current) - Number(moveLeft.current);
             direction.current.normalize(); // this ensures consistent movements in all directions

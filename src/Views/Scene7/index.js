@@ -162,7 +162,52 @@ export const Scene7 = () => {
             //     new CANNON.Vec3(currentIntersect.current.point.x, currentIntersect.current.point.y, currentIntersect.current.point.z)
             // );
         }
+        fireBall();
     }
+    const fireBall = () => {
+        /**
+         * Fire ball
+         * */
+
+        let color = new THREE.Color(0xffffff);
+        color.setHex(Math.random() * 0xffffff);
+        //3js body
+        const _sphere = new THREE.Mesh(new THREE.SphereGeometry(bombSpecs.current.size, 32, 32), bombMaterial.current);
+        _sphere.castShadow = true
+        _sphere.receiveShadow = true
+        _sphere.position.set(currentIntersect.current.point.x, currentIntersect.current.point.y, currentIntersect.current.point.z)
+
+        //physics body
+        const shape = new CANNON.Sphere(bombSpecs.current.size);
+        const body = new CANNON.Body({
+            mass: 10, shape,
+        });
+        body.position.set(currentIntersect.current.point.x, currentIntersect.current.point.y, currentIntersect.current.point.z);
+        scene.current.add(_sphere);
+        world.current.addBody(body)
+        //
+        let vector = vec3.current;
+        // vec3.current.set(0, 0, 1);
+        vector.unproject(camera.current);
+        let ray = new THREE.Ray(new THREE.Vector3(camera.current.position.x, camera.current.position.y - 2, camera.current.position.z - 2.6), vector.sub(currentIntersect.current.point).normalize());
+        vec3.current.x = -ray.direction.x;
+        vec3.current.y = -ray.direction.y;
+        vec3.current.z = -ray.direction.z;
+        let x = body.position.x;
+        let y = body.position.y;
+        let z = body.position.z;
+        body.velocity.set(vec3.current.x * bombSpecs.current.power, vec3.current.y * bombSpecs.current.power, vec3.current.z * bombSpecs.current.power);
+        x += vec3.current.x;
+        y += vec3.current.y;
+        z += vec3.current.z;
+        console.log(x, y, z)
+        body.position.set(x, y, z);
+        _sphere.position.set(x, y, z);
+        objectsToUpdate.current.push({
+            mesh: _sphere, body
+        });
+    }
+
     const renderModel = () => {
         const _scene = new THREE.Scene();
         scene.current = _scene;
