@@ -8,6 +8,20 @@ import Stats from 'three/examples/jsm/libs/stats.module'
 import DomeModel from '../../assets/models/Dome.glb'
 import RiggedModel from '../../assets/models/Soldier.glb'
 import CANNON from "cannon";
+import floorBase from "../../assets/textures/scifi-texture/Sci-fi_Metal_Plate_003_basecolor.jpg";
+import floorHeight from "../../assets/textures/scifi-texture/Sci-fi_Metal_Plate_003_height.png";
+import floorAoMap from "../../assets/textures/scifi-texture/Sci-fi_Metal_Plate_003_ambientOcclusion.jpg";
+import floorNormalMap from "../../assets/textures/scifi-texture/Sci-fi_Metal_Plate_003_normal.jpg";
+import floorMetalMap from "../../assets/textures/scifi-texture/Sci-fi_Metal_Plate_003_metallic.jpg";
+import floorRoughMap from "../../assets/textures/scifi-texture/Sci-fi_Metal_Plate_003_roughness.jpg";
+
+import domeBase from "../../assets/textures/grill-texture/Metal_Grill_024_basecolor.jpg";
+import domeHeight from "../../assets/textures/grill-texture/Metal_Grill_024_height.png";
+import domeAoMap from "../../assets/textures/grill-texture/Metal_Grill_024_ambientOcclusion.jpg";
+import domeNormalMap from "../../assets/textures/grill-texture/Metal_Grill_024_normal.jpg";
+import domeMetalMap from "../../assets/textures/grill-texture/Metal_Grill_024_metallic.jpg";
+import domeRoughMap from "../../assets/textures/grill-texture/Metal_Grill_024_roughness.jpg";
+
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
 
@@ -101,6 +115,7 @@ export const Scene4 = () => {
         };
     }, []);
     const loadColliderModel = () => {
+        const textureLoader = new THREE.TextureLoader();
         gltfLoader.current.load(DomeModel, (gltf) => {
             const model = gltf.scene;
             if (model) {
@@ -114,18 +129,62 @@ export const Scene4 = () => {
                     if (object?.name?.indexOf('Showpiece') !== -1) {
                         showPiece.current = object;
                     }
-                    if (['Stairs_3'].includes(object?.name)) {
-                        // object.material.color = new THREE.Color('red')
+                    if (object?.name === 'Stand') {
                         stairs.current.push(object)
                     }
+                    if (['Stairs_part_2'].includes(object?.name)) {
+                        stairs.current.push(object)
+                    }
+
                     if (object.isMesh && (object?.name?.indexOf('Dome') !== -1 || object?.name?.indexOf('Male') !== -1)) {
                         // object.visible = false;
                         if (object?.name?.indexOf('Male') !== -1) {
-                            console.log(object)
+                            object.material = new THREE.MeshNormalMaterial()
                             let _pointLight = new THREE.PointLight(0x8f8f8f, 2,);
                             _pointLight.castShadow = true
                             _pointLight.position.set(0, 0, 5)
                             object.add(_pointLight);
+                        }
+                        if (object?.name?.indexOf('Dome') !== -1) {
+                            const baseMap = textureLoader.load(domeBase);
+                            const heightMap = textureLoader.load(domeHeight);
+                            const aoMap = textureLoader.load(domeAoMap);
+                            const metalnessMap = textureLoader.load(domeMetalMap);
+                            const roughnessMap = textureLoader.load(domeRoughMap);
+                            const normalMap = textureLoader.load(domeNormalMap);
+
+                            baseMap.repeat.set(4, 4)
+                            heightMap.repeat.set(4, 4)
+                            aoMap.repeat.set(4, 4)
+                            metalnessMap.repeat.set(4, 4)
+                            roughnessMap.repeat.set(4, 4)
+                            normalMap.repeat.set(4, 4)
+
+                            baseMap.wrapS = THREE.RepeatWrapping
+                            heightMap.wrapS = THREE.RepeatWrapping
+                            aoMap.wrapS = THREE.RepeatWrapping
+                            metalnessMap.wrapS = THREE.RepeatWrapping
+                            roughnessMap.wrapS = THREE.RepeatWrapping
+                            normalMap.wrapS = THREE.RepeatWrapping
+
+                            baseMap.wrapT = THREE.RepeatWrapping
+                            aoMap.wrapT = THREE.RepeatWrapping
+                            metalnessMap.wrapT = THREE.RepeatWrapping
+                            roughnessMap.wrapT = THREE.RepeatWrapping
+                            heightMap.wrapT = THREE.RepeatWrapping
+                            normalMap.wrapT = THREE.RepeatWrapping
+
+                            object.material = new THREE.MeshStandardMaterial({
+                                map: baseMap,
+                                transparent: true,
+                                // bumpMap: heightMap,
+                                // displacementMap: heightMap,
+                                // displacementScale: 0.0001,
+                                normalMap: normalMap,
+                                metalnessMap: metalnessMap,
+                                roughnessMap: roughnessMap,
+                                aoMap: aoMap
+                            })
                         }
                         object.layers.enable(1);
                         arr.push(object);
@@ -213,6 +272,7 @@ export const Scene4 = () => {
         _scene.current = scene;
         const manager = new THREE.LoadingManager();
         gltfLoader.current = new GLTFLoader(manager);
+        const textureLoader = new THREE.TextureLoader(manager);
 
         manager.onStart = function () {
             console.log('Loading ßtarted!');
@@ -241,10 +301,49 @@ export const Scene4 = () => {
 
 
         //physics floor
+        const baseMap = textureLoader.load(floorBase);
+        const heightMap = textureLoader.load(floorHeight);
+        const aoMap = textureLoader.load(floorAoMap);
+        const metalnessMap = textureLoader.load(floorMetalMap);
+        const roughnessMap = textureLoader.load(floorRoughMap);
+        const normalMap = textureLoader.load(floorNormalMap);
+
+        baseMap.repeat.set(20, 20)
+        heightMap.repeat.set(20, 20)
+        aoMap.repeat.set(20, 20)
+        metalnessMap.repeat.set(20, 20)
+        roughnessMap.repeat.set(20, 20)
+        normalMap.repeat.set(20, 20)
+
+        baseMap.wrapS = THREE.RepeatWrapping
+        heightMap.wrapS = THREE.RepeatWrapping
+        aoMap.wrapS = THREE.RepeatWrapping
+        metalnessMap.wrapS = THREE.RepeatWrapping
+        roughnessMap.wrapS = THREE.RepeatWrapping
+        normalMap.wrapS = THREE.RepeatWrapping
+
+        baseMap.wrapT = THREE.RepeatWrapping
+        aoMap.wrapT = THREE.RepeatWrapping
+        metalnessMap.wrapT = THREE.RepeatWrapping
+        roughnessMap.wrapT = THREE.RepeatWrapping
+        heightMap.wrapT = THREE.RepeatWrapping
+        normalMap.wrapT = THREE.RepeatWrapping
+
+
         const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({
-            color: '#cbc04a', metalness: 0.3, roughness: 0.4, visible: false
+            map: baseMap,
+            // transparent: true,
+            // bumpMap: heightMap,
+            // displacementMap: heightMap,
+            // displacementScale: 0.0001,
+            normalMap: normalMap,
+            metalnessMap: metalnessMap,
+            roughnessMap: roughnessMap,
+            aoMap: aoMap
         }))
-        floor.receiveShadow = true
+        floor.geometry.setAttribute('uv2', new THREE.Float32BufferAttribute(floor.geometry.attributes.uv.array, 2))
+        floor.receiveShadow = true;
+        floor.position.y = 0.001
         floor.rotation.x = -Math.PI * 0.5
         _scene.current.add(floor)
 
@@ -490,9 +589,11 @@ export const Scene4 = () => {
             gsap.to(person.current.position, {
                 y: 1
             })
-        } else gsap.to(person.current.position, {
-            y: 0
-        })
+        } else {
+            gsap.to(person.current.position, {
+                y: 0
+            })
+        }
         // Forward
         if (moveForward.current) {
             action = 'Run'
@@ -552,6 +653,13 @@ export const Scene4 = () => {
             // _scene.current.add(arrow.current)
             // let ray = new THREE.Raycaster(originPoint, directionVector.clone().normalize());
             let collisionResults = raycaster.current.intersectObjects(walls.current, false);
+            let stairIntersect = null;
+            if (stairs.current?.length) {
+                stairIntersect = raycaster.current.intersectObjects(stairs.current, true);
+            }
+            console.log('stair', stairIntersect)
+            if (stairIntersect?.length) {
+            }
             if (collisionResults.length > 0 && collisionResults[0]?.distance < 0.25) {
                 console.log('~~~~~HIT~~~~~', collisionResults[0]?.distance);
                 blocked = true;
