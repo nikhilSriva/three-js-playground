@@ -1,4 +1,4 @@
-import {useEffect, useRef} from "react";
+import {useEffect, useRef, useState} from "react";
 import * as THREE from "three";
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
 import "./index.scss";
@@ -36,7 +36,10 @@ export const Scene4 = () => {
     const moveLeft = useRef(false);
     const moveRight = useRef(false);
     const canJump = useRef(false);
-    const arrow = useRef(new THREE.ArrowHelper())
+    const [loading, setLoading] = useState(false);
+    const arrow = useRef(new THREE.ArrowHelper());
+    const gltfLoader = useRef(new GLTFLoader());
+
     const prevTime = useRef(performance.now());
     const prevTime1 = useRef(performance.now());
     const walls = useRef([]);
@@ -98,8 +101,7 @@ export const Scene4 = () => {
         };
     }, []);
     const loadColliderModel = () => {
-        const gltfLoader = new GLTFLoader();
-        gltfLoader.load(DomeModel, (gltf) => {
+        gltfLoader.current.load(DomeModel, (gltf) => {
             const model = gltf.scene;
             if (model) {
                 const objects = [...gltf.scene.children];
@@ -160,8 +162,7 @@ export const Scene4 = () => {
         });
     }
     const loadPlayer = () => {
-        const gltfLoader = new GLTFLoader();
-        gltfLoader.load(RiggedModel, (gltf) => {
+        gltfLoader.current.load(RiggedModel, (gltf) => {
             console.log('Main res', gltf)
             const model = gltf.scene;
             console.log('>>>', model)
@@ -202,10 +203,19 @@ export const Scene4 = () => {
     }
     const renderModel = () => {
         const scene = new THREE.Scene();
-        _scene.current = scene
+        _scene.current = scene;
+        const manager = new THREE.LoadingManager();
+        gltfLoader.current = new GLTFLoader(manager);
+
+        manager.onStart = function () {
+            console.log('Loading ßtarted!');
+            setLoading(true);
+        };
+        manager.onLoad = function () {
+            console.log('Loading complete!');
+            setLoading(false);
+        };
         loadColliderModel();
-
-
         /**
          * Physics world
          * */
@@ -596,6 +606,9 @@ export const Scene4 = () => {
     }
     return (<div className={"scene"}>
         <canvas className={"canvas"}/>
+        {
+            loading && <p className={'loading'}>Loading...</p>
+        }
     </div>);
 };
 
