@@ -178,11 +178,18 @@ export const Scene4 = () => {
             _scene.current.add(model);
             let mixer = new THREE.AnimationMixer(model);
             animationMixer.current = mixer;
+            let backRun = null;
             gltf.animations.map(item => {
                 if (item.name !== 'TPose')
                     modelAnimations.current[item.name] = mixer.clipAction(item);
+                if (item.name === 'Run') {
+                    modelAnimations.current[item.name] = mixer.clipAction(item);
+                    backRun = mixer.clipAction(item.clone());
+                }
             })
             person.current = model;
+            backRun.timeScale = -1;
+            modelAnimations.current['BackRun'] = backRun;
             console.log(modelAnimations.current)
             // const shape = new CANNON.Sphere();
             // const body = new CANNON.Body({
@@ -471,7 +478,7 @@ export const Scene4 = () => {
         // this.tmpPosition.copy( this.body.position );
         prevPositions.current.unshift(person.current.position.clone());
         prevPositions.current.pop();
-        let action = moveForward.current ? 'Run' : 'Idle';
+        let action = 'Idle';
         if (crouch.current) {
             gsap.to(person.current.scale, {
                 y: 0.6
@@ -488,10 +495,12 @@ export const Scene4 = () => {
         })
         // Forward
         if (moveForward.current) {
+            action = 'Run'
             person.current.translateZ(-SPEED * delta);
         }
         // Back
         if (moveBackward.current) {
+            action = 'BackRun'
             person.current.translateZ(SPEED * delta);
         }
         // Left
@@ -507,6 +516,7 @@ export const Scene4 = () => {
         if (modelAnimations.current[action] && (action !== currentAction.current)) {
             modelAnimations.current[currentAction.current]?.fadeOut(1);
             modelAnimations.current[action]?.reset()?.fadeIn(0.4).play()
+
             currentAction.current = action
         }
 
