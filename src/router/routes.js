@@ -18,7 +18,7 @@ export const Routes = [
         component: Scene3,
     },
     {
-        label: "Abandonded Room",
+        label: "Museum Tour",
         route: "/scene4",
         component: Scene4,
     },

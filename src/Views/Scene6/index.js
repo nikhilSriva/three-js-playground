@@ -158,26 +158,6 @@ export const Scene6 = () => {
             roughness: 0.4, metalness: 0.5, map: textureLoader.load(VenusTex), bumpMap: textureLoader.load(VenusBumpTex)
         });
 
-        /**
-         * Models
-         */
-        const gltfLoader = new GLTFLoader();
-        gltfLoader.load(GunModel, (gltf) => {
-            const model = gltf.scene;
-            if (model) {
-                const objects = [...gltf.scene.children];
-                const modelGroup = new THREE.Group();
-                for (const object of objects) {
-                    modelGroup.add(object)
-                }
-                laserGun.current = modelGroup;
-                laserGun.current.castShadow = true
-                // laserGun.current.lookAt(0, 0, 0)
-                laserGun.current.position.set(_camera.position.x, _camera.position.y - 4, _camera.position.z - 10)
-                laserGun.current.rotation.y = Math.PI * 0.5
-                scene.current.add(modelGroup);
-            }
-        });
 
         gui.add({
             bombPower: 30,
@@ -260,7 +240,7 @@ export const Scene6 = () => {
         floor.receiveShadow = true
         floor.rotation.x = -Math.PI * 0.5
         _scene.add(floor)
-
+        // var cannonDebugRenderer = new THREE.CannonDebugRenderer( scene, world );
         /**
          * Lights
          */
@@ -297,6 +277,37 @@ export const Scene6 = () => {
         });
         _floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI * 0.5)
         _world.addBody(_floorBody);
+
+
+        /**
+         * Models
+         */
+        const gltfLoader = new GLTFLoader();
+        gltfLoader.load(GunModel, (gltf) => {
+            const model = gltf.scene;
+            gltf.scene.traverse(function (child) {
+                if (child.isMesh) {
+                    // console.log(child)
+
+                }
+            });
+            if (model) {
+                const objects = [...model.children];
+                console.log(objects);
+                const modelGroup = new THREE.Group();
+                for (const object of objects) {
+                        modelGroup.add(object)
+                }
+                console.log(modelGroup)
+                laserGun.current = modelGroup;
+                laserGun.current.castShadow = true
+                laserGun.current.scale.set(0.6, 0.6, 0.6)
+                // laserGun.current.lookAt(0, 0, 0)
+                laserGun.current.position.set(_camera.position.x + 6, _camera.position.y - 4, _camera.position.z - 8)
+                laserGun.current.rotation.y = Math.PI * 0.6
+                scene.current.add(modelGroup);
+            }
+        });
 
 
         /**
