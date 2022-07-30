@@ -9,7 +9,7 @@ import VenusTex from '../../assets/textures/venusmap.jpg'
 import VenusBumpTex from '../../assets/textures/venusbump.jpg'
 import {Instructions} from "../../components/Instructions";
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
-import GunModel from '../../assets/models/PistolaLaser.glb';
+import GunModel from '../../assets/models/shotgun.glb';
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
 
@@ -285,26 +285,35 @@ export const Scene6 = () => {
         const gltfLoader = new GLTFLoader();
         gltfLoader.load(GunModel, (gltf) => {
             const model = gltf.scene;
-            gltf.scene.traverse(function (child) {
+            console.log(gltf)
+            model.traverse(function (child) {
                 if (child.isMesh) {
                     // console.log(child)
-
                 }
             });
+
+            model.scale.set(0.005, 0.005, 0.005);
+            model.rotation.y = -Math.PI * 0.5
+            model.rotation.z = 0.1;
+            // model.rotation.set(Math.PI * 0.5, Math.PI * -0.45, 0.1);
+            model.position.set(_camera.position.x + 6, _camera.position.y - 4, _camera.position.z - 8);
+            scene.current.add(model);
+            laserGun.current = model;
+            return;
             if (model) {
                 const objects = [...model.children];
                 console.log(objects);
                 const modelGroup = new THREE.Group();
                 for (const object of objects) {
-                        modelGroup.add(object)
+                    modelGroup.add(object)
                 }
                 console.log(modelGroup)
                 laserGun.current = modelGroup;
                 laserGun.current.castShadow = true
-                laserGun.current.scale.set(0.6, 0.6, 0.6)
+                laserGun.current.scale.set(0.001, 0.001, 0.001)
                 // laserGun.current.lookAt(0, 0, 0)
                 laserGun.current.position.set(_camera.position.x + 6, _camera.position.y - 4, _camera.position.z - 8)
-                laserGun.current.rotation.y = Math.PI * 0.6
+                // laserGun.current.rotation.y = Math.PI * 0.6
                 scene.current.add(modelGroup);
             }
         });
