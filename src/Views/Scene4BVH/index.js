@@ -128,9 +128,7 @@ export const Scene4BVH = () => {
             // visual geometry setup
             const toMerge = {};
             gltfScene.traverse(c => {
-
                 if (
-                    /Shield/.test(c.name) ||
                     /Gate/.test(c.name) ||
                     // pink brick
                     c.material && c.material.color.r === 1.0
@@ -240,21 +238,28 @@ export const Scene4BVH = () => {
         camera.current = _camera;
     }
     const createLights = () => {
-        const _pointLight = new THREE.PointLight(0x8f8f8f, 0.5,);
-        _pointLight.castShadow = true
-        _pointLight.position.set(0, 10, 1)
-        _scene.current.add(_pointLight);
-        pointLight.current = _pointLight
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(1, 1.5, 1).multiplyScalar(50);
+        light.shadow.mapSize.setScalar(2048);
+        light.shadow.bias = -1e-4;
+        light.shadow.normalBias = 0.05;
+        light.castShadow = true;
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1);
-        _scene.current.add(ambientLight)
-
+        const shadowCam = light.shadow.camera;
+        shadowCam.bottom = shadowCam.left = -30;
+        shadowCam.top = 30;
+        shadowCam.right = 45;
+        _scene.current.add(light);
+        _scene.current.add(new THREE.HemisphereLight(0xffffff, 0x223344, 0.4));
     }
     const createRenderer = () => {
         const canvas = document.querySelector(".canvas");
         const _renderer = new THREE.WebGLRenderer({canvas});
         _renderer.setSize(SIZES.width, SIZES.height);
         _renderer.setPixelRatio(window.devicePixelRatio);
+        _renderer.shadowMap.enabled = true;
+        _renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        _renderer.outputEncoding = THREE.sRGBEncoding;
         _renderer.render(_scene.current, camera.current);
         renderer.current = _renderer;
     }
@@ -355,9 +360,6 @@ export const Scene4BVH = () => {
     };
     const updateCollider = () => {
         if (collider.current) {
-            collider.current.visible = false;
-            visualizer.visible = false;
-
             const physicsSteps = params.physicsSteps;
 
             for (let i = 0; i < physicsSteps; i++) {
