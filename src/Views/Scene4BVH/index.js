@@ -119,6 +119,7 @@ export const Scene4BVH = () => {
 
 
         return () => {
+            _gui.current?.destroy();
             window.removeEventListener("resize", onResize);
             window.removeEventListener("mousemove", onPointMove);
             document.removeEventListener('keydown', onKeyDown);
