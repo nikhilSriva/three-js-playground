@@ -4,16 +4,20 @@ import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
 import "./index.scss";
 import DungeonModel from '../../assets/models/dungeon.glb'
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils";
-import {MeshBVH, MeshBVHVisualizer} from "three-mesh-bvh";
+import {computeBoundsTree, MeshBVH, MeshBVHVisualizer} from "three-mesh-bvh";
 import {RoundedBoxGeometry} from "three/examples/jsm/geometries/RoundedBoxGeometry";
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import Stats from "three/examples/jsm/libs/stats.module";
+import SoldierModel from "../../assets/models/knight.glb";
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+const windowHalf = new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2);
+
 const params = {
-
+    updateRate: 1,
+    autoUpdate: true,
     firstPerson: false,
-
     displayCollider: false,
     displayBVH: false,
     visualizeDepth: 10,
@@ -36,7 +40,9 @@ export const Scene4BVH = () => {
     const renderer = useRef(null);
     const controls = useRef(null);
     const mousePointer = useRef(new THREE.Vector2());
-    const pointLight = useRef(new THREE.PointLight());
+    const animationMixer = useRef(null);
+    const modelAnimations = useRef({});
+    const currentAction = useRef('');
     const moveForward = useRef(false);
     const moveBackward = useRef(false);
     const crouch = useRef(false);
@@ -50,17 +56,27 @@ export const Scene4BVH = () => {
     const visualizer = useRef(null);
 
     const playerVelocity = useRef(new THREE.Vector3());
-    const player = useRef(new THREE.Mesh());
+    let player = useRef(new THREE.Mesh());
     const tempVector = useRef(new THREE.Vector3());
     const tempVector2 = useRef(new THREE.Vector3());
     const tempBox = useRef(new THREE.Box3());
     const tempMat = useRef(new THREE.Matrix4());
     const tempSegment = useRef(new THREE.Line3());
     const playerIsOnGround = useRef(false);
+    const staticGeometryGenerator = useRef(null);
+    const meshHelper = useRef(null);
+    const bvhHelper = useRef(null);
+    const timeSinceUpdate = useRef(0);
+    const rotationQuaternion = useRef(new THREE.Quaternion());
+    const target = useRef(new THREE.Vector2());
+    const vector = useRef(new THREE.Vector3()); // create once and reuse it!
 
     const onPointMove = (event) => {
-        mousePointer.current.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mousePointer.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        // mousePointer.current.x = (event.clientX / window.innerWidth) * 2 - 1;
+        // mousePointer.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        mousePointer.current.x = (event.clientX - windowHalf.x);
+        mousePointer.current.y = (event.clientY - windowHalf.x);
     }
 
     const onResize = () => {
@@ -100,19 +116,73 @@ export const Scene4BVH = () => {
         };
     }, []);
     const loadPlayer = () => {
-        let _player = new THREE.Mesh(new RoundedBoxGeometry(1.0, 2.0, 1.0, 10, 0.5), new THREE.MeshBasicMaterial({color: 'yellow'}));
-        _player.geometry.translate(0, -0.5, 0);
-        _player.capsuleInfo = {
-            radius: 0.5, segment: new THREE.Line3(new THREE.Vector3(), new THREE.Vector3(0, -1.0, 0.0))
-        };
-        _player.castShadow = true;
-        _player.receiveShadow = true;
-        _player.material.shadowSide = 2;
-        _scene.current.add(_player);
-        player.current = _player;
+        gltfLoader.current.load(SoldierModel, (gltf) => {
+            const model = gltf.scene;
+            console.log('SOldier model', model)
+            model.castShadow = true;
+            model.scale.set(0.12, 0.12, 0.12);
+            model.rotation.y = Math.PI
+            model.updateMatrixWorld(true);
+            _scene.current.add(model);
+
+            let mixer = new THREE.AnimationMixer(model);
+            animationMixer.current = mixer;
+            let backRun = null;
+            if (gltf.animations.length) {
+                console.log(gltf.animations)
+                gltf.animations.forEach(item => {
+                    if (item.name === 'Idle') {
+                        modelAnimations.current[item.name] = mixer.clipAction(item);
+                    }
+                })
+                modelAnimations.current['BackRun'] = backRun;
+
+            }
+            let _player = new THREE.Mesh(new RoundedBoxGeometry(1.0, 1.7, 1.0, 10, 0.5), new THREE.MeshBasicMaterial({
+                color: 'yellow', wireframe: true, visible: false
+            }));
+            _player.geometry.translate(0, -0.5, 0);
+            _player.capsuleInfo = {
+                radius: 0.5, segment: new THREE.Line3(new THREE.Vector3(), new THREE.Vector3(0, -1.0, 0.0))
+            };
+
+            model.position.copy(_player.position).y = _player.position.y - 1.5
+            _player.add(camera.current);
+            _player.add(model);
+            _player.castShadow = true;
+            _player.receiveShadow = true;
+            _player.material.shadowSide = 2;
+            _scene.current.add(_player);
+            player.current = _player;
+        }, () => {
+        }, (err) => {
+            console.log(err)
+        })
+
 
     }
+    const regenerateMesh = () => {
 
+        if (meshHelper.current) {
+            staticGeometryGenerator.current.generate(meshHelper.current.geometry);
+
+            // time the bvh refitting
+            if (!meshHelper.current.geometry.boundsTree) {
+
+                meshHelper.current.geometry.computeBoundsTree();
+
+            } else {
+
+                meshHelper.current.geometry.boundsTree.refit();
+
+            }
+
+            bvhHelper.current.update();
+            timeSinceUpdate.current = 0;
+
+        }
+
+    }
     const loadColliderModel = () => {
         gltfLoader.current.load(DungeonModel, (gltf) => {
             const gltfScene = gltf.scene;
@@ -128,11 +198,8 @@ export const Scene4BVH = () => {
             // visual geometry setup
             const toMerge = {};
             gltfScene.traverse(c => {
-                if (
-                    /Gate/.test(c.name) ||
-                    // pink brick
-                    c.material && c.material.color.r === 1.0
-                ) {
+                if (/Gate/.test(c.name) || // pink brick
+                    c.material && c.material.color.r === 1.0) {
 
                     return;
 
@@ -161,8 +228,7 @@ export const Scene4BVH = () => {
                 if (visualGeometries.length) {
                     const newGeom = BufferGeometryUtils.mergeBufferGeometries(visualGeometries);
                     const newMesh = new THREE.Mesh(newGeom, new THREE.MeshStandardMaterial({
-                        color: parseInt(hex),
-                        shadowSide: 2
+                        color: parseInt(hex), shadowSide: 2
                     }));
                     newMesh.castShadow = true;
                     newMesh.receiveShadow = true;
@@ -266,16 +332,17 @@ export const Scene4BVH = () => {
 
     const cameraControls = () => {
         controls.current = new OrbitControls(camera.current, renderer.current.domElement);
+        // controls.current.enabled = false;
     }
 
     function reset() {
 
         playerVelocity.current.set(0, 0, 0);
         player.current.position.set(15.75, 1.5, 30);
-        camera.current.position.sub(controls.current.target);
-        controls.current.target.copy(player.current.position);
-        camera.current.position.add(player.current.position);
-        controls.current.update();
+        // camera.current.position.sub(controls.current.target);
+        // controls.current.target.copy(player.current.position);
+        // camera.current.position.add(player.current.position);
+        // controls.current.update();
 
     }
 
@@ -351,10 +418,17 @@ export const Scene4BVH = () => {
         }
 
     };
+
+
     const tick = (scene) => {
         const _camera = camera.current, _renderer = renderer.current;
         _renderer.render(scene, _camera);
         stats.current?.update();
+        if (meshHelper.current) {
+            meshHelper.current.visible = true;
+            bvhHelper.current.visible = true;
+        }
+        _scene.current.updateMatrixWorld(true);
         updateCollider()
         window.requestAnimationFrame(() => tick(scene));
     };
@@ -371,37 +445,45 @@ export const Scene4BVH = () => {
     }
 
     const updatePlayer = (delta) => {
-
+        const rotateAngle = Math.PI / 2 * (delta * 8);   // pi/2 radians (90 degrees) per second
         playerVelocity.current.y += playerIsOnGround.current ? 0 : delta * params.gravity;
         player.current.position.addScaledVector(playerVelocity.current, delta);
+        let action = 'Idle';
 
         // move the player
         const angle = controls.current.getAzimuthalAngle();
         if (moveForward.current) {
-
-            tempVector.current.set(0, 0, -1).applyAxisAngle(upVector, angle);
-            player.current.position.addScaledVector(tempVector.current, params.playerSpeed * delta);
+            // tempVector.current.set(0, 0, -1).applyAxisAngle(upVector, angle);
+            player.current.translateZ(-(params.playerSpeed * delta));
 
         }
 
         if (moveBackward.current) {
-
-            tempVector.current.set(0, 0, 1).applyAxisAngle(upVector, angle);
-            player.current.position.addScaledVector(tempVector.current, params.playerSpeed * delta);
+            action = 'BackRun'
+            player.current.translateZ(params.playerSpeed * delta);
 
         }
+        if (modelAnimations.current[action] && (action !== currentAction.current)) {
+            modelAnimations.current[currentAction.current]?.fadeOut(1);
+            modelAnimations.current[action]?.reset()?.fadeIn(0.4).play();
+            currentAction.current = action
+        }
+
 
         if (moveLeft.current) {
 
-            tempVector.current.set(-1, 0, 0).applyAxisAngle(upVector, angle);
-            player.current.position.addScaledVector(tempVector.current, params.playerSpeed * delta);
+            rotationQuaternion.current.setFromAxisAngle(upVector, rotateAngle);
+            player.current.setRotationFromQuaternion(rotationQuaternion.current.multiply(player.current.quaternion));
+            // tempVector.current.set(-1, 0, 0).applyAxisAngle(upVector, angle);
+            // player.current.position.addScaledVector(tempVector.current, params.playerSpeed * delta);
 
         }
 
         if (moveRight.current) {
-
-            tempVector.current.set(1, 0, 0).applyAxisAngle(upVector, angle);
-            player.current.position.addScaledVector(tempVector.current, params.playerSpeed * delta);
+            rotationQuaternion.current.setFromAxisAngle(upVector, -rotateAngle);
+            player.current.setRotationFromQuaternion(rotationQuaternion.current.multiply(player.current.quaternion));
+            // tempVector.current.set(1, 0, 0).applyAxisAngle(upVector, angle);
+            // player.current.position.addScaledVector(tempVector.current, params.playerSpeed * delta);
 
         }
 
@@ -479,12 +561,12 @@ export const Scene4BVH = () => {
         }
 
         // adjust the camera
-        camera.current.position.sub(controls.current.target);
-        controls.current.target.copy(player.current.position);
-        camera.current.position.add(player.current.position);
+        // camera.current.position.sub(controls.current.target);
+        // controls.current.target.copy(player.current.position);
+        // camera.current.position.add(player.current.position);
 
         // if the player has fallen too far below the level reset their position to the start
-        if (player.current.position.y < -25) {
+        if (player.current.position.y < -2) {
             console.log('RESETTTING')
             reset();
         }
@@ -493,8 +575,8 @@ export const Scene4BVH = () => {
 
     const renderModel = () => {
         createScene();
-        createLoadingManager();
         createCamera()
+        createLoadingManager();
         loadPlayer();
         loadColliderModel();
         createLights();
