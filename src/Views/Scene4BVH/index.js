@@ -9,11 +9,15 @@ import {RoundedBoxGeometry} from "three/examples/jsm/geometries/RoundedBoxGeomet
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import Stats from "three/examples/jsm/libs/stats.module";
 import SoldierModel from "../../assets/models/knight.glb";
+import GUI from "lil-gui";
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 const windowHalf = new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2);
 
+const guiOptions = {
+    enableNightMode: false
+}
 const params = {
     updateRate: 1,
     autoUpdate: true,
@@ -35,6 +39,7 @@ let upVector = new THREE.Vector3(0, 1, 0);
 export const Scene4BVH = () => {
     const clock = useRef(new THREE.Clock());
     const stats = useRef(null);
+    const _gui = useRef(null);
     const camera = useRef(new THREE.PerspectiveCamera());
     const _scene = useRef(new THREE.Scene());
     const renderer = useRef(null);
@@ -68,9 +73,16 @@ export const Scene4BVH = () => {
     const bvhHelper = useRef(null);
     const timeSinceUpdate = useRef(0);
     const rotationQuaternion = useRef(new THREE.Quaternion());
+    const enemies = useRef([]);
+    const guardTorch = useRef(null);
+    const playerModel = useRef(null);
+    const nightMode = useRef(false);
     const target = useRef(new THREE.Vector2());
     const vector = useRef(new THREE.Vector3()); // create once and reuse it!
-
+    const lights = useRef({
+        hemishphereLight: null,
+        light: null
+    })
     const onPointMove = (event) => {
         // mousePointer.current.x = (event.clientX / window.innerWidth) * 2 - 1;
         // mousePointer.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -115,6 +127,36 @@ export const Scene4BVH = () => {
 
         };
     }, []);
+
+    const enableNight = () => {
+        playerModel.current.traverse(c => {
+            if (c.name === 'armor') {
+                const spotLight = new THREE.SpotLight('#f1e6cc', 1);
+                spotLight.position.set(0, 3, 0.1);
+                spotLight.castShadow = true;
+                spotLight.angle = Math.PI * 0.14;
+                spotLight.shadow.mapSize.width = 1024;
+                spotLight.shadow.mapSize.height = 1024;
+                spotLight.distance = 40
+                spotLight.shadow.focus = 1;
+                spotLight.shadow.camera.far = 20
+                spotLight.penumbra = 0.25;
+                guardTorch.current = spotLight;
+                c.add(spotLight)
+                c.add(spotLight.target)
+            }
+        });
+        lights.current.hemishphereLight.intensity = 0.02;
+        _scene.current.remove(lights.current.light)
+    }
+    const disableNight = () => {
+        guardTorch.current.removeFromParent();
+        lights.current.hemishphereLight.intensity = 0.4;
+        _scene.current.add(lights.current.light)
+    }
+    const removeTorchFromPlayer = () => {
+        guardTorch.current.removeFromParent();
+    }
     const loadPlayer = () => {
         gltfLoader.current.load(SoldierModel, (gltf) => {
             const model = gltf.scene;
@@ -123,8 +165,24 @@ export const Scene4BVH = () => {
             model.scale.set(0.12, 0.12, 0.12);
             model.rotation.y = Math.PI
             model.updateMatrixWorld(true);
-            _scene.current.add(model);
-
+            model.traverse(c => {
+                // if (c.name === 'armor') {
+                //     const spotLight = new THREE.SpotLight('#f1e6cc', 1);
+                //     spotLight.position.set(0, 3, 0.1);
+                //     spotLight.castShadow = true;
+                //     spotLight.angle = Math.PI * 0.14;
+                //     spotLight.shadow.mapSize.width = 1024;
+                //     spotLight.shadow.mapSize.height = 1024;
+                //     spotLight.distance = 40
+                //     spotLight.shadow.focus = 1;
+                //     spotLight.shadow.camera.far = 20
+                //     spotLight.penumbra = 0.25;
+                //     guardTorch.current = spotLight.target;
+                //     c.add(spotLight)
+                //     c.add(spotLight.target)
+                // }
+            })
+            playerModel.current = model;
             let mixer = new THREE.AnimationMixer(model);
             animationMixer.current = mixer;
             let backRun = null;
@@ -138,9 +196,12 @@ export const Scene4BVH = () => {
                 modelAnimations.current['BackRun'] = backRun;
 
             }
-            let _player = new THREE.Mesh(new RoundedBoxGeometry(1.0, 1.7, 1.0, 10, 0.5), new THREE.MeshBasicMaterial({
-                color: 'yellow', wireframe: true, visible: false
-            }));
+
+            let _player = new THREE.Mesh(
+                new RoundedBoxGeometry(1.0, 1.7, 1.0, 10, 0.5),
+                new THREE.MeshBasicMaterial({
+                    visible: false
+                }));
             _player.geometry.translate(0, -0.5, 0);
             _player.capsuleInfo = {
                 radius: 0.5, segment: new THREE.Line3(new THREE.Vector3(), new THREE.Vector3(0, -1.0, 0.0))
@@ -161,28 +222,6 @@ export const Scene4BVH = () => {
 
 
     }
-    const regenerateMesh = () => {
-
-        if (meshHelper.current) {
-            staticGeometryGenerator.current.generate(meshHelper.current.geometry);
-
-            // time the bvh refitting
-            if (!meshHelper.current.geometry.boundsTree) {
-
-                meshHelper.current.geometry.computeBoundsTree();
-
-            } else {
-
-                meshHelper.current.geometry.boundsTree.refit();
-
-            }
-
-            bvhHelper.current.update();
-            timeSinceUpdate.current = 0;
-
-        }
-
-    }
     const loadColliderModel = () => {
         gltfLoader.current.load(DungeonModel, (gltf) => {
             const gltfScene = gltf.scene;
@@ -199,24 +238,28 @@ export const Scene4BVH = () => {
             const toMerge = {};
             gltfScene.traverse(c => {
                 if (/Gate/.test(c.name) || // pink brick
-                    c.material && c.material.color.r === 1.0) {
-
+                    c.material && c.material?.color?.r === 1.0) {
                     return;
-
                 }
                 if (c.isMesh) {
-                    const hex = c.material.color.getHex();
+                    if (c.name.indexOf('Character') !== -1) {
+                        console.log('Main Character', c);
+                    }
+                    if (c.name.indexOf('Enemie') !== -1) {
+                        enemies.current.push(c)
+                    }
+                    const hex = c.material.color?.getHex();
                     toMerge[hex] = toMerge[hex] || [];
                     toMerge[hex].push(c);
                 }
             });
-
+            console.log(enemies.current)
             let environment = new THREE.Group();
             for (const hex in toMerge) {
                 const arr = toMerge[hex];
                 const visualGeometries = [];
                 arr.forEach(mesh => {
-                    if (mesh.material.emissive.r !== 0) {
+                    if (mesh.material?.emissive?.r !== 0) {
                         environment.attach(mesh);
                     } else {
                         const geom = mesh.geometry.clone();
@@ -299,7 +342,7 @@ export const Scene4BVH = () => {
     }
     const createCamera = () => {
         const _camera = new THREE.PerspectiveCamera(75, SIZES.width / SIZES.height, 0.1, 50);
-        _camera.position.set(0, 3, 4);
+        _camera.position.set(0, 2.5, 4);
         _camera.updateProjectionMatrix();
         camera.current = _camera;
     }
@@ -315,8 +358,9 @@ export const Scene4BVH = () => {
         shadowCam.bottom = shadowCam.left = -30;
         shadowCam.top = 30;
         shadowCam.right = 45;
-        _scene.current.add(light);
-        _scene.current.add(new THREE.HemisphereLight(0xffffff, 0x223344, 0.4));
+        lights.current.light = light;
+        lights.current.hemishphereLight = new THREE.HemisphereLight(0xffffff, 0x223344, 0.4)
+        _scene.current.add(lights.current.light, lights.current.hemishphereLight);
     }
     const createRenderer = () => {
         const canvas = document.querySelector(".canvas");
@@ -332,18 +376,12 @@ export const Scene4BVH = () => {
 
     const cameraControls = () => {
         controls.current = new OrbitControls(camera.current, renderer.current.domElement);
-        // controls.current.enabled = false;
+        controls.current.enabled = false;
     }
 
     function reset() {
-
         playerVelocity.current.set(0, 0, 0);
         player.current.position.set(15.75, 1.5, 30);
-        // camera.current.position.sub(controls.current.target);
-        // controls.current.target.copy(player.current.position);
-        // camera.current.position.add(player.current.position);
-        // controls.current.update();
-
     }
 
     const onKeyDown = function (event) {
@@ -428,6 +466,7 @@ export const Scene4BVH = () => {
             meshHelper.current.visible = true;
             bvhHelper.current.visible = true;
         }
+
         _scene.current.updateMatrixWorld(true);
         updateCollider()
         window.requestAnimationFrame(() => tick(scene));
@@ -566,14 +605,26 @@ export const Scene4BVH = () => {
         // camera.current.position.add(player.current.position);
 
         // if the player has fallen too far below the level reset their position to the start
-        if (player.current.position.y < -2) {
+        if (player.current.position.y < -10) {
             console.log('RESETTTING')
             reset();
         }
 
     }
 
+    const createGui = () => {
+        const gui = new GUI();
+        _gui.current = gui;
+
+        gui.add({
+            enableNightMode: false
+        }, 'enableNightMode').onChange(v => {
+            v ? enableNight() : disableNight()
+        })
+
+    }
     const renderModel = () => {
+        createGui();
         createScene();
         createCamera()
         createLoadingManager();
@@ -582,7 +633,7 @@ export const Scene4BVH = () => {
         createLights();
         createRenderer();
         cameraControls();
-        reset()
+        reset();
         const _stats = Stats();
         stats.current = _stats;
         document.body.appendChild(_stats.dom);
