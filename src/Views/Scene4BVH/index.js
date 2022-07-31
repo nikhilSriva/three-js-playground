@@ -55,7 +55,7 @@ export const Scene4BVH = () => {
     const moveRight = useRef(false);
     const canJump = useRef(false);
     const isCurrentlyJumping = useRef(false)
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(0);
     const gltfLoader = useRef(new GLTFLoader());
     const collider = useRef(null);
     const visualizer = useRef(null);
@@ -68,17 +68,12 @@ export const Scene4BVH = () => {
     const tempMat = useRef(new THREE.Matrix4());
     const tempSegment = useRef(new THREE.Line3());
     const playerIsOnGround = useRef(false);
-    const staticGeometryGenerator = useRef(null);
     const meshHelper = useRef(null);
     const bvhHelper = useRef(null);
-    const timeSinceUpdate = useRef(0);
     const rotationQuaternion = useRef(new THREE.Quaternion());
     const enemies = useRef([]);
     const guardTorch = useRef(null);
     const playerModel = useRef(null);
-    const nightMode = useRef(false);
-    const target = useRef(new THREE.Vector2());
-    const vector = useRef(new THREE.Vector3()); // create once and reuse it!
     const lights = useRef({
         hemishphereLight: null,
         light: null
@@ -243,10 +238,12 @@ export const Scene4BVH = () => {
                     return;
                 }
                 if (c.isMesh) {
+                    console.log(c.name)
                     if (c.name.indexOf('Character') !== -1) {
                         console.log('Main Character', c);
                     }
                     if (c.name.indexOf('Enemie') !== -1) {
+
                         enemies.current.push(c)
                     }
                     const hex = c.material.color?.getHex();
@@ -256,6 +253,16 @@ export const Scene4BVH = () => {
             });
             console.log(enemies.current)
             let environment = new THREE.Group();
+            const spotLight = new THREE.SpotLight('#f1e6cc', 1);
+            spotLight.position.set(0, 3, 0.1);
+            spotLight.castShadow = true;
+            spotLight.angle = Math.PI * 0.14;
+            spotLight.shadow.mapSize.width = 1024;
+            spotLight.shadow.mapSize.height = 1024;
+            spotLight.distance = 40
+            spotLight.shadow.focus = 1;
+            spotLight.shadow.camera.far = 20
+            spotLight.penumbra = 0.25;
             for (const hex in toMerge) {
                 const arr = toMerge[hex];
                 const visualGeometries = [];
@@ -332,13 +339,17 @@ export const Scene4BVH = () => {
     const createLoadingManager = () => {
         const manager = new THREE.LoadingManager();
         gltfLoader.current = new GLTFLoader(manager);
+
         manager.onStart = function () {
             console.log('Loading ßtarted!');
-            setLoading(true);
+            setLoading(0);
         };
         manager.onLoad = function () {
             console.log('Loading complete!');
-            setLoading(false);
+            setLoading(100);
+        };
+        manager.onProgress = function (url, itemsLoaded, itemsTotal) {
+            setLoading(Math.floor(itemsLoaded / itemsTotal * 100))
         };
     }
     const createCamera = () => {
@@ -643,6 +654,6 @@ export const Scene4BVH = () => {
 
     return (<div className={"scene"}>
         <canvas className={"canvas"}/>
-        {loading && <p className={'loading'}>Loading...</p>}
+        {loading !== 100 && <p className={'loading'}>Loading {loading}%</p>}
     </div>);
 };
