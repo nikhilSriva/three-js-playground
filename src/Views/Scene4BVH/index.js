@@ -15,7 +15,7 @@ import gsap from 'gsap'
 import {EffectComposer} from "three/examples/jsm/postprocessing/EffectComposer";
 import {RenderPass} from "three/examples/jsm/postprocessing/RenderPass";
 import {UnrealBloomPass} from "three/examples/jsm/postprocessing/UnrealBloomPass";
-import {CSS2DObject, CSS2DRenderer} from "three/examples/jsm/renderers/CSS2DRenderer";
+import {CSS2DRenderer} from "three/examples/jsm/renderers/CSS2DRenderer";
 import {Instructions} from "../../components/Instructions";
 
 const ENTIRE_SCENE = 0, BLOOM_SCENE = 1;
@@ -146,11 +146,9 @@ export const Scene4BVH = () => {
             _gui.current?.destroy();
             window.removeEventListener("resize", onResize);
             window.removeEventListener("click", onPointClick);
-
             window.removeEventListener("mousemove", onPointMove);
             document.removeEventListener('keydown', onKeyDown);
             document.removeEventListener('keyup', onKeyUp);
-
 
         };
     }, []);
@@ -524,8 +522,6 @@ export const Scene4BVH = () => {
         if (collisionResults.length && collisionResults[0]?.distance < 0.25) {
             if (orbModel.current) {
                 _scene.current.remove(orbModel.current);
-                let div = document.querySelector('.label');
-                div.style.display = 'none'
                 orbModel.current = null;
                 orbPower.current += 1;
             }
@@ -690,8 +686,6 @@ export const Scene4BVH = () => {
     const loadProps = () => {
         if (orbModel.current) {
             _scene.current.remove(orbModel.current);
-            let div = document.querySelector('.label');
-            div.style.display = 'none'
         }
         gltfLoader.current.load(CrystalModel, (gltf) => {
             let model = gltf.scene;
@@ -722,14 +716,6 @@ export const Scene4BVH = () => {
 
             let i = 0;
             model.position.set(ORB_POSITIONS[i].x, ORB_POSITIONS[i].y, ORB_POSITIONS[i].z);
-            const label = document.createElement('div');
-            label.className = 'label';
-            label.textContent = 'Jump power UP';
-            label.style.marginTop = '-1em';
-            const earthLabel = new CSS2DObject(label);
-            earthLabel.position.set(ORB_POSITIONS[i].x, ORB_POSITIONS[i].y, ORB_POSITIONS[i].z);
-            orb.current.add(earthLabel);
-            earthLabel.layers.set(0);
             orbModel.current = model;
             _scene.current.add(model);
             let mixer = new THREE.AnimationMixer(model);
