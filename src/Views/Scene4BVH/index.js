@@ -511,6 +511,7 @@ export const Scene4BVH = () => {
                 }
             }
             if (dimCounter === orbParticles.current.length) {
+                orbPower.current += 1;
                 _scene.current.remove(orbModel.current);
                 isCollided.current = false
             }
