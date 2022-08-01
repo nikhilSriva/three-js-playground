@@ -4,20 +4,39 @@ import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
 import "./index.scss";
 import DungeonModel from '../../assets/models/dungeon.glb'
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils";
-import {computeBoundsTree, MeshBVH, MeshBVHVisualizer} from "three-mesh-bvh";
+import {acceleratedRaycast, computeBoundsTree, MeshBVH, MeshBVHVisualizer} from "three-mesh-bvh";
 import {RoundedBoxGeometry} from "three/examples/jsm/geometries/RoundedBoxGeometry";
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import Stats from "three/examples/jsm/libs/stats.module";
 import SoldierModel from "../../assets/models/knight.glb";
+import CrystalModel from "../../assets/models/Crystal.glb";
 import GUI from "lil-gui";
+import gsap from 'gsap'
+import {EffectComposer} from "three/examples/jsm/postprocessing/EffectComposer";
+import {RenderPass} from "three/examples/jsm/postprocessing/RenderPass";
+import {UnrealBloomPass} from "three/examples/jsm/postprocessing/UnrealBloomPass";
+import {CSS2DObject, CSS2DRenderer} from "three/examples/jsm/renderers/CSS2DRenderer";
+import {Instructions} from "../../components/Instructions";
+
+const ENTIRE_SCENE = 0, BLOOM_SCENE = 1;
 
 const SIZES = {width: window.innerWidth, height: window.innerHeight};
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 const windowHalf = new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2);
 
-const guiOptions = {
-    enableNightMode: false
-}
+const ORB_POSITIONS = [{
+    x: 9, y: 1.4, z: 3.75
+}, {
+    x: -10.002181588493995,
+    y: 1.4581646733462643,
+    z: -7.704358034552327
+}, {
+    x: 7.256411342221488, y: 3.432587854144039, z: -23.652041021749998
+},
+    {
+        x: 5.256411342221488, y: 3.432587854144039, z: -10.652041021749998
+    }]
 const params = {
     updateRate: 1,
     autoUpdate: true,
@@ -25,7 +44,7 @@ const params = {
     displayCollider: false,
     displayBVH: false,
     visualizeDepth: 10,
-    gravity: -3000,
+    gravity: -2200,
     playerSpeed: 40,
     physicsSteps: 5,
 
@@ -59,7 +78,7 @@ export const Scene4BVH = () => {
     const gltfLoader = useRef(new GLTFLoader());
     const collider = useRef(null);
     const visualizer = useRef(null);
-
+    const raycaster = useRef(new THREE.Raycaster());
     const playerVelocity = useRef(new THREE.Vector3());
     let player = useRef(new THREE.Mesh());
     const tempVector = useRef(new THREE.Vector3());
@@ -68,15 +87,23 @@ export const Scene4BVH = () => {
     const tempMat = useRef(new THREE.Matrix4());
     const tempSegment = useRef(new THREE.Line3());
     const playerIsOnGround = useRef(false);
+    const orbModel = useRef(null);
+    const orb = useRef(new THREE.Mesh());
+    const raycasterObjects = useRef([]);
+    const direction = useRef(new THREE.Vector3());
+    const effectComposer = useRef(null)
     const meshHelper = useRef(null);
     const bvhHelper = useRef(null);
+    const firstClickDone = useRef(false);
     const rotationQuaternion = useRef(new THREE.Quaternion());
     const enemies = useRef([]);
     const guardTorch = useRef(null);
     const playerModel = useRef(null);
+    const orbPower = useRef(0);
+    const arrow = useRef(new THREE.ArrowHelper())
+    const labelRenderer = useRef(new CSS2DRenderer())
     const lights = useRef({
-        hemishphereLight: null,
-        light: null
+        hemishphereLight: null, light: null
     })
     const onPointMove = (event) => {
         // mousePointer.current.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -108,6 +135,8 @@ export const Scene4BVH = () => {
 
         // Handing Resize
         window.addEventListener("resize", onResize);
+        window.addEventListener("click", onPointClick);
+
         window.addEventListener("mousemove", onPointMove);
         document.addEventListener('keydown', onKeyDown);
         document.addEventListener('keyup', onKeyUp);
@@ -116,6 +145,8 @@ export const Scene4BVH = () => {
         return () => {
             _gui.current?.destroy();
             window.removeEventListener("resize", onResize);
+            window.removeEventListener("click", onPointClick);
+
             window.removeEventListener("mousemove", onPointMove);
             document.removeEventListener('keydown', onKeyDown);
             document.removeEventListener('keyup', onKeyUp);
@@ -124,6 +155,15 @@ export const Scene4BVH = () => {
         };
     }, []);
 
+    const onPointClick = () => {
+        if (!firstClickDone.current) {
+            let div = document.querySelector('.instruction');
+            if (div) {
+                div.remove();
+                firstClickDone.current = true
+            }
+        }
+    }
     const enableNight = () => {
         playerModel.current.traverse(c => {
             if (c.name === 'armor') {
@@ -159,28 +199,17 @@ export const Scene4BVH = () => {
             console.log('SOldier model', model)
             model.castShadow = true;
             model.scale.set(0.12, 0.12, 0.12);
-            model.rotation.y = Math.PI
-            model.updateMatrixWorld(true);
-            model.traverse(c => {
-                // if (c.name === 'armor') {
-                //     const spotLight = new THREE.SpotLight('#f1e6cc', 1);
-                //     spotLight.position.set(0, 3, 0.1);
-                //     spotLight.castShadow = true;
-                //     spotLight.angle = Math.PI * 0.14;
-                //     spotLight.shadow.mapSize.width = 1024;
-                //     spotLight.shadow.mapSize.height = 1024;
-                //     spotLight.distance = 40
-                //     spotLight.shadow.focus = 1;
-                //     spotLight.shadow.camera.far = 20
-                //     spotLight.penumbra = 0.25;
-                //     guardTorch.current = spotLight.target;
-                //     c.add(spotLight)
-                //     c.add(spotLight.target)
-                // }
+            model.rotation.y = Math.PI;
+            model.traverse((c) => {
+                if (c.isMesh) {
+                    c.castShadow = true;
+                    c.receiveShadow = true;
+                }
             })
+            model.updateMatrixWorld(true);
             playerModel.current = model;
             let mixer = new THREE.AnimationMixer(model);
-            animationMixer.current = mixer;
+            if (!animationMixer.current) animationMixer.current = mixer;
             let backRun = null;
             if (gltf.animations.length) {
                 console.log(gltf.animations)
@@ -193,17 +222,14 @@ export const Scene4BVH = () => {
 
             }
 
-            let _player = new THREE.Mesh(
-                new RoundedBoxGeometry(1.0, 1.7, 1.0, 10, 0.5),
-                new THREE.MeshBasicMaterial({
-                    visible: false
-                }));
-            _player.geometry.translate(0, -0.5, 0);
+            let _player = new THREE.Mesh(new RoundedBoxGeometry(1.0, 1.7, 1.0, 10, 0.5), new THREE.MeshBasicMaterial({
+                visible: false
+            }));
             _player.capsuleInfo = {
                 radius: 0.5, segment: new THREE.Line3(new THREE.Vector3(), new THREE.Vector3(0, -1.0, 0.0))
             };
-
-            model.position.copy(_player.position).y = _player.position.y - 1.5
+            _player.position.set(15.75, 1, 30);
+            model.position.y = -1.5;
             _player.add(camera.current);
             _player.add(model);
             _player.castShadow = true;
@@ -238,7 +264,6 @@ export const Scene4BVH = () => {
                     return;
                 }
                 if (c.isMesh) {
-                    console.log(c.name)
                     if (c.name.indexOf('Character') !== -1) {
                         console.log('Main Character', c);
                     }
@@ -251,7 +276,6 @@ export const Scene4BVH = () => {
                     toMerge[hex].push(c);
                 }
             });
-            console.log(enemies.current)
             let environment = new THREE.Group();
             const spotLight = new THREE.SpotLight('#f1e6cc', 1);
             spotLight.position.set(0, 3, 0.1);
@@ -354,7 +378,7 @@ export const Scene4BVH = () => {
     }
     const createCamera = () => {
         const _camera = new THREE.PerspectiveCamera(75, SIZES.width / SIZES.height, 0.1, 50);
-        _camera.position.set(0, 2.5, 4);
+        _camera.position.set(0, 2.3, 4);
         _camera.updateProjectionMatrix();
         camera.current = _camera;
     }
@@ -391,9 +415,10 @@ export const Scene4BVH = () => {
         controls.current.enabled = false;
     }
 
-    function reset() {
+    function reset(loadExtraProps = true) {
         playerVelocity.current.set(0, 0, 0);
-        player.current.position.set(15.75, 1.5, 30);
+        player.current.position.set(15.75, 1, 30);
+        orbPower.current = 0;
     }
 
     const onKeyDown = function (event) {
@@ -425,7 +450,7 @@ export const Scene4BVH = () => {
                 isCurrentlyJumping.current = true;
                 console.log('SPACE')
                 if (playerIsOnGround.current) {
-                    playerVelocity.current.y = 130;
+                    playerVelocity.current.y = 130 + (orbPower.current * 30);
                 }
                 break;
             default:
@@ -472,17 +497,42 @@ export const Scene4BVH = () => {
 
     const tick = (scene) => {
         const _camera = camera.current, _renderer = renderer.current;
+        _renderer.autoClear = false;
+        _renderer.clear();
+        _camera.layers.set(1);
+        effectComposer.current.render();
+        _renderer.clearDepth();
+        _camera.layers.set(0);
         _renderer.render(scene, _camera);
+        labelRenderer.current.render(scene, camera.current)
+        // _renderer.render(scene, _camera);
         stats.current?.update();
-        if (meshHelper.current) {
-            meshHelper.current.visible = true;
-            bvhHelper.current.visible = true;
-        }
-
         _scene.current.updateMatrixWorld(true);
-        updateCollider()
+        checkCollision()
+        updateCollider();
         window.requestAnimationFrame(() => tick(scene));
     };
+    const checkCollision = () => {
+        const originPoint = player.current.position.clone();
+        player.current.getWorldDirection(direction.current);
+        raycaster.current.ray.origin = originPoint;
+        raycaster.current.ray.direction = direction.current.negate();
+        raycaster.current.set(player.current.position, direction.current);
+        raycaster.current.firstHitOnly = true;
+
+        let collisionResults = raycaster.current.intersectObjects(raycasterObjects.current, false);
+        if (collisionResults.length && collisionResults[0]?.distance < 0.25) {
+            if (orbModel.current) {
+                _scene.current.remove(orbModel.current);
+                let div = document.querySelector('.label');
+                div.style.display = 'none'
+                orbModel.current = null;
+                orbPower.current += 1;
+            }
+        }
+
+    }
+
     const updateCollider = () => {
         if (collider.current) {
             const physicsSteps = params.physicsSteps;
@@ -503,43 +553,44 @@ export const Scene4BVH = () => {
 
         // move the player
         const angle = controls.current.getAzimuthalAngle();
-        if (moveForward.current) {
-            // tempVector.current.set(0, 0, -1).applyAxisAngle(upVector, angle);
-            player.current.translateZ(-(params.playerSpeed * delta));
+        if (firstClickDone.current) {
+            if (moveForward.current) {
+                // tempVector.current.set(0, 0, -1).applyAxisAngle(upVector, angle);
+                player.current.translateZ(-(params.playerSpeed * delta));
 
+            }
+
+            if (moveBackward.current) {
+                action = 'BackRun'
+                player.current.translateZ(params.playerSpeed * delta);
+
+            }
+            if (modelAnimations.current[action] && (action !== currentAction.current)) {
+                modelAnimations.current[currentAction.current]?.fadeOut(1);
+                modelAnimations.current[action]?.reset()?.fadeIn(0.4).play();
+                currentAction.current = action
+            }
+
+
+            if (moveLeft.current) {
+
+                rotationQuaternion.current.setFromAxisAngle(upVector, rotateAngle);
+                player.current.setRotationFromQuaternion(rotationQuaternion.current.multiply(player.current.quaternion));
+                // tempVector.current.set(-1, 0, 0).applyAxisAngle(upVector, angle);
+                // player.current.position.addScaledVector(tempVector.current, params.playerSpeed * delta);
+
+            }
+
+            if (moveRight.current) {
+                rotationQuaternion.current.setFromAxisAngle(upVector, -rotateAngle);
+                player.current.setRotationFromQuaternion(rotationQuaternion.current.multiply(player.current.quaternion));
+                // tempVector.current.set(1, 0, 0).applyAxisAngle(upVector, angle);
+                // player.current.position.addScaledVector(tempVector.current, params.playerSpeed * delta);
+
+            }
+
+            player.current.updateMatrixWorld();
         }
-
-        if (moveBackward.current) {
-            action = 'BackRun'
-            player.current.translateZ(params.playerSpeed * delta);
-
-        }
-        if (modelAnimations.current[action] && (action !== currentAction.current)) {
-            modelAnimations.current[currentAction.current]?.fadeOut(1);
-            modelAnimations.current[action]?.reset()?.fadeIn(0.4).play();
-            currentAction.current = action
-        }
-
-
-        if (moveLeft.current) {
-
-            rotationQuaternion.current.setFromAxisAngle(upVector, rotateAngle);
-            player.current.setRotationFromQuaternion(rotationQuaternion.current.multiply(player.current.quaternion));
-            // tempVector.current.set(-1, 0, 0).applyAxisAngle(upVector, angle);
-            // player.current.position.addScaledVector(tempVector.current, params.playerSpeed * delta);
-
-        }
-
-        if (moveRight.current) {
-            rotationQuaternion.current.setFromAxisAngle(upVector, -rotateAngle);
-            player.current.setRotationFromQuaternion(rotationQuaternion.current.multiply(player.current.quaternion));
-            // tempVector.current.set(1, 0, 0).applyAxisAngle(upVector, angle);
-            // player.current.position.addScaledVector(tempVector.current, params.playerSpeed * delta);
-
-        }
-
-        player.current.updateMatrixWorld();
-
         // adjust player position based on collisions
         const capsuleInfo = player.current.capsuleInfo;
         tempBox.current.makeEmpty();
@@ -620,6 +671,7 @@ export const Scene4BVH = () => {
         if (player.current.position.y < -10) {
             console.log('RESETTTING')
             reset();
+            loadProps();
         }
 
     }
@@ -635,17 +687,94 @@ export const Scene4BVH = () => {
         })
 
     }
+    const loadProps = () => {
+        if (orbModel.current) {
+            _scene.current.remove(orbModel.current);
+            let div = document.querySelector('.label');
+            div.style.display = 'none'
+        }
+        gltfLoader.current.load(CrystalModel, (gltf) => {
+            let model = gltf.scene;
+            let pointLight = new THREE.PointLight(0x00ff00, 5);
+            pointLight.distance = 2;
+            model.scale.set(0.8, 0.8, 0.8)
+            model.traverse(c => {
+                if (c.isMesh) {
+                    if (c.name === 'MainOrb') {
+                        raycasterObjects.current.push(c);
+                        orb.current = c;
+                        c.layers.enable(1);
+                        c.material.transparent = true;
+                        let timeline = gsap.timeline();
+                        timeline
+                            .to(c.position, {
+                                duration: 2.5, y: 1.5, ease: 'power1.in'
+                            })
+                            .to(c.position, {
+                                duration: 2.5, y: 0.7, ease: 'power1.in'
+                            }).repeat(-1);
+                        c.castShadow = true;
+                        c.receiveShadow = true;
+                        c.add(pointLight)
+                    }
+                }
+            })
+
+            let i = 0;
+            model.position.set(ORB_POSITIONS[i].x, ORB_POSITIONS[i].y, ORB_POSITIONS[i].z);
+            const label = document.createElement('div');
+            label.className = 'label';
+            label.textContent = 'Jump power UP';
+            label.style.marginTop = '-1em';
+            const earthLabel = new CSS2DObject(label);
+            earthLabel.position.set(ORB_POSITIONS[i].x, ORB_POSITIONS[i].y, ORB_POSITIONS[i].z);
+            orb.current.add(earthLabel);
+            earthLabel.layers.set(0);
+            orbModel.current = model;
+            _scene.current.add(model);
+            let mixer = new THREE.AnimationMixer(model);
+            if (!animationMixer.current) animationMixer.current = mixer;
+            let action = mixer.clipAction(gltf.animations?.[0]);
+            action.play();
+
+        })
+    }
+    const createEffects = () => {
+        const _effectComposer = new EffectComposer(renderer.current)
+        _effectComposer.setSize(SIZES.width, SIZES.height)
+        _effectComposer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        const renderPass = new RenderPass(_scene.current, camera.current)
+        _effectComposer.addPass(renderPass);
+        const unrealBloomPass = new UnrealBloomPass();
+        unrealBloomPass.renderToScreen = true
+        unrealBloomPass.threshold = 0.21
+        unrealBloomPass.strength = 2
+        unrealBloomPass.radius = 0.9
+        _effectComposer.addPass(unrealBloomPass)
+        effectComposer.current = _effectComposer;
+    }
+    const creatLabelRenderer = () => {
+        const _labelRenderer = new CSS2DRenderer();
+        _labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        _labelRenderer.domElement.style.position = 'absolute';
+        _labelRenderer.domElement.style.top = '0px';
+        labelRenderer.current = _labelRenderer;
+        document.body.appendChild(_labelRenderer.domElement)
+    }
     const renderModel = () => {
         createGui();
         createScene();
         createCamera()
         createLoadingManager();
         loadPlayer();
+        reset();
+        loadProps();
         loadColliderModel();
         createLights();
         createRenderer();
         cameraControls();
-        reset();
+        createEffects()
+        creatLabelRenderer();
         const _stats = Stats();
         stats.current = _stats;
         document.body.appendChild(_stats.dom);
@@ -653,6 +782,8 @@ export const Scene4BVH = () => {
     };
 
     return (<div className={"scene"}>
+        <Instructions title={`⚔️ Dungeon`}
+                      subText={`WASD to move, SPACE to jump. \nConsume green orbs for more jump power. \n Do try the night mode in this`}/>
         <canvas className={"canvas"}/>
         {loading !== 100 && <p className={'loading'}>Loading {loading}%</p>}
     </div>);
