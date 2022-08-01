@@ -87,7 +87,9 @@ export const Scene4BVH = () => {
     const tempMat = useRef(new THREE.Matrix4());
     const tempSegment = useRef(new THREE.Line3());
     const playerIsOnGround = useRef(false);
+    const isCollided = useRef(false);
     const orbModel = useRef(null);
+    const orbParticles = useRef([]);
     const orb = useRef(new THREE.Mesh());
     const raycasterObjects = useRef([]);
     const direction = useRef(new THREE.Vector3());
@@ -493,8 +495,30 @@ export const Scene4BVH = () => {
     };
 
 
+    const fadeObjects = () => {
+        if (orbParticles.current.length && isCollided.current) {
+            let dimCounter = 0;
+            for (let i = 0; i < orbParticles.current.length; i++) {
+                let mesh = orbParticles.current[i];
+                if (mesh.material.opacity <= 1) {
+                    if (mesh.material.opacity <= 0) {
+                        dimCounter += 1;
+                        _scene.current.remove(mesh);
+                    } else {
+                        mesh.material.opacity -= 0.002;
+                        mesh.material.needsUpdate = true
+                    }
+                }
+            }
+            if (dimCounter === orbParticles.current.length) {
+                _scene.current.remove(orbModel.current);
+                isCollided.current = false
+            }
+        }
+    }
     const tick = (scene) => {
         const _camera = camera.current, _renderer = renderer.current;
+        fadeObjects()
         _renderer.autoClear = false;
         _renderer.clear();
         _camera.layers.set(1);
@@ -519,11 +543,10 @@ export const Scene4BVH = () => {
         raycaster.current.firstHitOnly = true;
 
         let collisionResults = raycaster.current.intersectObjects(raycasterObjects.current, false);
-        if (collisionResults.length && collisionResults[0]?.distance < 0.25) {
+        if (collisionResults.length && collisionResults[0]?.distance < 0.35) {
             if (orbModel.current) {
-                _scene.current.remove(orbModel.current);
-                orbModel.current = null;
-                orbPower.current += 1;
+                console.log('HIT')
+                isCollided.current = true
             }
         }
 
@@ -694,6 +717,7 @@ export const Scene4BVH = () => {
             model.scale.set(0.8, 0.8, 0.8)
             model.traverse(c => {
                 if (c.isMesh) {
+                    orbParticles.current.push(c);
                     if (c.name === 'MainOrb') {
                         raycasterObjects.current.push(c);
                         orb.current = c;
