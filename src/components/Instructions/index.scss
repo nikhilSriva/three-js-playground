@@ -8,6 +8,8 @@
   padding: 12px;
   max-width: 25%;
   pointer-events: none;
+  backdrop-filter: blur(10px);
+  background-color: rgba(0, 0, 0, 0.4);
 
   p {
     position: relative;
