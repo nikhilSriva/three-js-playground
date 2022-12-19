@@ -4,16 +4,19 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 // import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+// import CANNON from "cannon";
 
 // import DungeonModel from "../../assets/models/dungeon.glb";
 import Soldier from "../../assets/models/UpdatedSoldier.glb";
-// import ChineseCity from "../../assets/models/low_poly_chinese_city.glb";
+import ChineseCity from "../../assets/models/low_poly_chinese_city.glb";
 import { getDirectionOffset } from "../../utils";
 
 // ------------
 // * Global Constants
 // ------------
 const SIZES = { width: window.innerWidth, height: window.innerHeight };
+const RUN_VELOCITY = 10;
+const WALK_VELOCITY = 2;
 
 export const Scene8 = () => {
   // ------------
@@ -29,7 +32,6 @@ export const Scene8 = () => {
   const _scene = useRef(null);
   const _camera = useRef(null);
   const _renderer = useRef(null);
-  const _plane = useRef(null);
   const _controller = useRef(null);
   const _gltfLoader = useRef(null);
   const _ambientLight = useRef(null);
@@ -43,6 +45,7 @@ export const Scene8 = () => {
     d: false,
     shift: false,
   });
+  // const _raycaster = useRef(null);
 
   // ------------
   // * Functions
@@ -54,11 +57,12 @@ export const Scene8 = () => {
   const createCamera = () => {
     const camera = new THREE.PerspectiveCamera(
       75,
-      SIZES.width / SIZES.height
-      // 0.1,
-      // 100
+      SIZES.width / SIZES.height,
+      0.1,
+      100
     );
     camera.position.z = 3;
+    camera.position.y = 2;
     // camera.position.set(0, , 0);
     // camera.updateProjectionMatrix();
     _camera.current = camera;
@@ -67,10 +71,11 @@ export const Scene8 = () => {
 
   const createRenderer = () => {
     const canvas = document.querySelector(".canvas");
-    const renderer = new THREE.WebGLRenderer({ canvas });
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setSize(SIZES.width, SIZES.height);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.render(_scene.current, _camera.current);
+    renderer.shadowMap.enabled = true;
     _renderer.current = renderer;
   };
 
@@ -86,7 +91,7 @@ export const Scene8 = () => {
       setLoading(true);
     };
     manager.onProgress = function (_, itemLoaded, totalItems) {
-      setLoadingPercentage((totalItems / itemLoaded) * 100);
+      setLoadingPercentage((itemLoaded / totalItems) * 100);
     };
     manager.onLoad = function () {
       console.log("Loading complete!");
@@ -96,49 +101,58 @@ export const Scene8 = () => {
   };
 
   const createLights = () => {
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x223344, 1);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 1);
     hemiLight.position.set(0, 20, 0);
+    const hemiLightHelper = new THREE.HemisphereLightHelper(hemiLight, 10);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-    dirLight.position.set(-3, 10, -10);
+    // dirLight.color.setHSL(0.1, 1, 0.95);
+    dirLight.position.set(-1, 1.75, 1);
+    dirLight.position.multiplyScalar(30);
+
     dirLight.castShadow = true;
-    dirLight.shadow.camera.top = 2;
-    dirLight.shadow.camera.bottom = -2;
-    dirLight.shadow.camera.left = -2;
-    dirLight.shadow.camera.right = 2;
-    dirLight.shadow.camera.near = 0.1;
-    dirLight.shadow.camera.far = 40;
-    _scene.current.add(hemiLight, dirLight);
+
+    dirLight.shadow.mapSize.width = 4096;
+    dirLight.shadow.mapSize.height = 4096;
+
+    const d = 50;
+
+    dirLight.shadow.camera.left = -d;
+    dirLight.shadow.camera.right = d;
+    dirLight.shadow.camera.top = d;
+    dirLight.shadow.camera.bottom = -d;
+
+    // dirLight.shadow.camera.far = 3500;
+    // dirLight.shadow.bias = - 0.0001;
+
+    const dirLightHelper = new THREE.DirectionalLightHelper(dirLight, 10);
+    _scene.current.add(hemiLight, hemiLightHelper);
+    _scene.current.add(dirLight, dirLightHelper);
   };
 
   const loadEnvironment = () => {
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(100, 100),
-      new THREE.MeshPhongMaterial({ color: 0x555555, depthWrite: false })
-    );
-    plane.rotation.x = -Math.PI / 2;
-    plane.receiveShadow = true;
-    _plane.current = plane;
-    _scene.current.add(plane);
+    _gltfLoader.current.load(
+      ChineseCity,
+      (gltf) => {
+        const gltfScene = gltf.scene;
+        gltfScene.receiveShadow = true;
+        gltfScene.scale.setScalar(5);
 
-    // _gltfLoader.current.load(
-    //   ChineseCity,
-    //   (gltf) => {
-    //     console.log(
-    //       "🚀 ~ file: index.js ~ line 84 ~ loadEnvironment ~ gltf",
-    //       gltf
-    //     );
-    //     const gltfScene = gltf.scene;
-    //     console.log(
-    //       "🚀 ~ file: index.js ~ line 79 ~ loadEnvironment ~ gltfScene",
-    //       gltfScene
-    //     );
-    //     gltfScene.position.set(-20.5, -0.5, -20);
-    //     _scene.current.add(gltfScene);
-    //   },
-    //   () => {},
-    //   (err) => console.error("Error while loading model", err)
-    // );
+        // centering the model
+        const box = new THREE.Box3();
+        box.setFromObject(gltfScene);
+        box.getCenter(gltfScene.position).negate();
+        gltfScene.updateMatrixWorld(true);
+        gltfScene.position.y = -0.11;
+        console.log("🚀 ~ file: index.js:147 ~ loadEnvironment ~ gltfScene", gltfScene)
+
+        const sceneBoundingBox = new THREE.BoxHelper(gltfScene, 0xff0000);
+        sceneBoundingBox.update();
+        _scene.current.add(gltfScene, sceneBoundingBox);
+      },
+      () => {},
+      (err) => console.error("Error while loading model", err)
+    );
   };
 
   const createControl = () => {
@@ -146,6 +160,8 @@ export const Scene8 = () => {
       _camera.current,
       _renderer.current.domElement
     );
+    controller.enablePan = false;
+
     _controller.current = controller;
   };
 
@@ -180,6 +196,11 @@ export const Scene8 = () => {
       };
     });
   };
+
+  // const createRays = () => {
+  //   const origin = _player.
+  //   const raycaster = new THREE.Raycaster()
+  // }
 
   const updateCameraTarget = (moveX, moveZ) => {
     // move camera
@@ -245,7 +266,9 @@ export const Scene8 = () => {
         rotateAngle,
         angleYCameraDirection + directionOffset
       );
+      // console.log("🚀 ~ file: index.js:270 ~ playerUpdateHandler ~ model.quaternion", model.quaternion)
       model.quaternion.rotateTowards(rotateQuarternion, 0.2);
+      // console.log("🚀 ~ file: index.js:270 ~ playerUpdateHandler ~ model.quaternion", model.quaternion)
 
       // Calculate direction
       camera.getWorldDirection(walkDirection);
@@ -254,8 +277,8 @@ export const Scene8 = () => {
       walkDirection.applyAxisAngle(rotateAngle, directionOffset);
 
       // run/walk playerVelocity
-      const runVelocity = 5;
-      const walkVelocity = 2;
+      const runVelocity = RUN_VELOCITY;
+      const walkVelocity = WALK_VELOCITY;
       const velocity = currentAction === "Run" ? runVelocity : walkVelocity;
 
       // move model & camera
@@ -270,17 +293,29 @@ export const Scene8 = () => {
   const animate = (scene) => {
     const camera = _camera.current;
     const renderer = _renderer.current;
-    if (camera && renderer) {
-      renderer.render(scene, camera);
-    }
 
+    const previousTime = _previousTime.current;
+    const elapsedTime = _clock.current.getElapsedTime();
+    _previousTime.current = elapsedTime;
+    const deltaTime = elapsedTime - previousTime;
+
+    _controller.current.update();
     const player = _player.current;
     if (player) {
-      const previousTime = _previousTime.current;
-      const elapsedTime = _clock.current.getElapsedTime();
-      _previousTime.current = elapsedTime;
-      const deltaTime = elapsedTime - previousTime;
       playerUpdateHandler(deltaTime);
+
+      // // Ray
+      // const origin = player.model.position;
+      // const direction = player.model.quaternion;
+      // direction.normalize();
+      // const raycaster = new THREE.Raycaster(origin, direction);
+      // const objects = null;
+      // const objectToTest = []
+      // console.log("🚀 ~ file: index.js:309 ~ animate ~ raycaster", raycaster)
+    }
+
+    if (camera && renderer) {
+      renderer.render(scene, camera);
     }
 
     window.requestAnimationFrame(() => animate(scene));
@@ -299,6 +334,7 @@ export const Scene8 = () => {
     loadEnvironment();
     createControl();
     createPlayer();
+    // createRays();
 
     animate(_scene.current);
   };
@@ -354,7 +390,9 @@ export const Scene8 = () => {
   return (
     <div className="scene">
       <canvas className="canvas" />
-      {loading && <p className="loading">Loading... {loadingPercentage}</p>}
+      {loading && (
+        <div className="loading">Loading... {loadingPercentage}%</div>
+      )}
     </div>
   );
 };
